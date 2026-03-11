@@ -1,20 +1,55 @@
-// Placeholder — engine autostart logic (Phase 4).
-// Checks if jobs exist and engine is running; starts engine if needed.
+// Engine autostart — checks if jobs exist and engine is running; starts if needed.
 
-import { readdirSync } from "node:fs";
-import { getJobsDir } from "./paths.mjs";
+import { readdirSync, readFileSync, unlinkSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { join } from "node:path";
+import { getJobsDir, getLockfilePath, getDataDir } from "./paths.mjs";
+
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Ensure the engine is running if there are jobs.
- * Implemented in Phase 4 (hook-autostart). For now, a no-op.
+ * Called on every session start via the onSessionStart hook.
  */
 export async function ensureEngine(extDir) {
+  // Check if any jobs exist
+  let hasJobs = false;
   try {
     const jobsDir = getJobsDir(extDir);
     const files = readdirSync(jobsDir).filter((f) => f.endsWith(".json"));
-    if (files.length === 0) return; // no jobs, nothing to start
-    // TODO: check engine.lock, spawn if not running
+    hasJobs = files.length > 0;
   } catch {
     // data/jobs/ doesn't exist yet — no jobs
   }
+
+  if (!hasJobs) return;
+
+  // Check if engine is already running
+  const lockPath = getLockfilePath(extDir);
+  try {
+    const raw = readFileSync(lockPath, "utf-8").trim();
+    const pid = parseInt(raw, 10);
+    if (pid && isProcessAlive(pid)) return; // engine is alive, nothing to do
+    // Stale lockfile — clean up
+    try { unlinkSync(lockPath); } catch { /* ok */ }
+  } catch {
+    // No lockfile — engine not running
+  }
+
+  // Start engine
+  const enginePath = join(extDir, "engine", "main.mjs");
+  const child = spawn("node", [enginePath], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+    cwd: extDir,
+  });
+  child.unref();
 }
