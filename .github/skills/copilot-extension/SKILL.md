@@ -17,10 +17,40 @@ The Copilot SDK is installed at `~/.copilot/pkg/`. It is **not** an npm package 
 
 Platform values: `win32-x64`, `darwin-arm64`, `darwin-x64`, `linux-x64`, etc. Built from `process.platform` + `process.arch`.
 
-**Import pattern** (must use `file://` URL with forward slashes):
+**Version resolution** — always resolve dynamically (never hardcode a version):
 ```js
-const sdkPath = join(sdkBase, latestVersion, "copilot-sdk", "index.js");
-const sdk = await import(`file://${sdkPath.replace(/\\/g, "/")}`);
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+
+async function resolveSdk() {
+  const pkgRoot = join(homedir(), ".copilot", "pkg");
+  const platformDir = `${process.platform}-${process.arch}`;
+  const searchDirs = [join(pkgRoot, platformDir), join(pkgRoot, "universal")];
+
+  for (const sdkBase of searchDirs) {
+    let versions;
+    try {
+      versions = readdirSync(sdkBase)
+        .filter((d) => !d.startsWith("."))
+        .sort();
+    } catch {
+      continue;
+    }
+    if (versions.length === 0) continue;
+
+    const latest = versions[versions.length - 1];
+    const sdkPath = join(sdkBase, latest, "copilot-sdk", "index.js");
+
+    try {
+      // Must use file:// URL with forward slashes
+      return await import(`file://${sdkPath.replace(/\\/g, "/")}`);
+    } catch {
+      continue;
+    }
+  }
+  throw new Error(`Cannot find Copilot SDK in: ${searchDirs.join(", ")}`);
+}
 ```
 
 ## SDK Exports
@@ -121,10 +151,16 @@ const session = await joinSession({
 
 ## Documentation & Type Definitions
 
-Official docs and examples ship with the SDK at:
+Official docs and examples ship with the SDK. To find them, resolve the latest installed version:
 
+```bash
+# Find the latest SDK docs directory
+ls ~/.copilot/pkg/universal/ | sort | tail -1
+# Then read from: ~/.copilot/pkg/universal/{latest}/copilot-sdk/
 ```
-~/.copilot/pkg/{platform}-{arch}/{version}/copilot-sdk/
+
+Key files inside `copilot-sdk/`:
+```
 ├── docs/
 │   ├── agent-author.md      — Step-by-step guide for agents writing extensions
 │   ├── examples.md           — Practical extension examples (skeleton, tools, hooks)

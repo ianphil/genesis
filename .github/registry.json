@@ -1,5 +1,5 @@
 {
-  "version": "0.8.1",
+  "version": "0.8.2",
   "source": "ianphil/genesis",
   "extensions": {
     "cron": {
@@ -35,7 +35,7 @@
       "description": "Morning briefing — ADO, Teams, calendar, email, mind next-actions"
     },
     "copilot-extension": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "path": ".github/skills/copilot-extension",
       "description": "SDK reference for building and debugging Copilot CLI extensions"
     },
