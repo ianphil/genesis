@@ -1,6 +1,6 @@
 // Canvas tools — canvas_show, canvas_update, canvas_close
 
-import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { exec } from "node:child_process";
 
@@ -42,7 +42,11 @@ export function createCanvasTools(contentDir, server, onAction) {
           },
           html: {
             type: "string",
-            description: "Full HTML content to display. Can be a complete page or fragment.",
+            description: "Full HTML content to display. Can be a complete page or fragment. Not required if 'file' is provided.",
+          },
+          file: {
+            type: "string",
+            description: "Absolute path to an existing HTML file to serve. The file is copied into the canvas content directory. Use instead of 'html' to serve a pre-built file.",
           },
           title: {
             type: "string",
@@ -53,16 +57,29 @@ export function createCanvasTools(contentDir, server, onAction) {
             description: "Whether to open the browser. Defaults to true. Set false to update content without opening a new tab.",
           },
         },
-        required: ["name", "html"],
+        required: ["name"],
       },
       handler: async (args) => {
-        const filename = `${args.name}.html`;
-        let html = args.html;
+        if (!args.html && !args.file) {
+          return "Error: either 'html' or 'file' must be provided.";
+        }
 
-        // Wrap fragment in a full page if needed
-        if (!html.toLowerCase().includes("<!doctype") && !html.toLowerCase().includes("<html")) {
-          const title = args.title || args.name;
-          html = `<!DOCTYPE html>
+        const filename = `${args.name}.html`;
+
+        if (args.file) {
+          // Serve an existing file — copy it into the content directory
+          if (!existsSync(args.file)) {
+            return `Error: file not found: ${args.file}`;
+          }
+          const source = readFileSync(args.file, "utf-8");
+          writeContent(contentDir, filename, source);
+        } else {
+          let html = args.html;
+
+          // Wrap fragment in a full page if needed
+          if (!html.toLowerCase().includes("<!doctype") && !html.toLowerCase().includes("<html")) {
+            const title = args.title || args.name;
+            html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -73,11 +90,12 @@ export function createCanvasTools(contentDir, server, onAction) {
 ${html}
 </body>
 </html>`;
-        } else if (args.title && !html.toLowerCase().includes("<title>")) {
-          html = html.replace("</head>", `  <title>${args.title}</title>\n</head>`);
-        }
+          } else if (args.title && !html.toLowerCase().includes("<title>")) {
+            html = html.replace("</head>", `  <title>${args.title}</title>\n</head>`);
+          }
 
-        writeContent(contentDir, filename, html);
+          writeContent(contentDir, filename, html);
+        }
 
         // Start server if not running
         let port = server.getPort();
