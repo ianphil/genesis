@@ -24,9 +24,21 @@ Genesis creates your `SOUL.md` (personality) and agent file (role), seeds workin
 | Component | Purpose |
 |-----------|---------|
 | `.working-memory/` | Persistent memory across sessions (memory.md, rules.md, log.md) |
-| `.github/skills/` | Pre-built skills (commit, capture, daily-report) |
+| `.github/skills/` | Pre-built skills (commit, daily-report, upgrade) |
+| `.github/extensions/` | Copilot CLI extensions (cron scheduler) |
+| `.github/registry.json` | Extension/skill registry for upgrades from genesis |
 | `domains/`, `initiatives/`, `expertise/`, `Archive/` | IDEA knowledge taxonomy |
 | `inbox/` | Quick-capture triage zone |
+
+## Upgrading Existing Minds
+
+Minds cloned from genesis can pull new extensions and skills at any time:
+
+```
+> Check for updates from genesis
+```
+
+The **upgrade** skill fetches the latest registry from this repo via GitHub API, shows what's new or updated, and installs your selections. No git remotes needed — it works through the agent's existing tools.
 
 ## Prerequisites
 

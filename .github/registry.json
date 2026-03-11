@@ -1,0 +1,33 @@
+{
+  "version": "0.3.0",
+  "source": "ianphil/genesis",
+  "extensions": {
+    "cron": {
+      "version": "0.3.0",
+      "path": ".github/extensions/cron",
+      "description": "Scheduled job execution — cron, interval, and one-shot with prompt and command payloads"
+    }
+  },
+  "skills": {
+    "commit": {
+      "version": "0.3.0",
+      "path": ".github/skills/commit",
+      "description": "Stage, commit, push with working memory observations"
+    },
+    "daily-report": {
+      "version": "0.3.0",
+      "path": ".github/skills/daily-report",
+      "description": "Morning briefing — ADO, Teams, calendar, email, mind next-actions"
+    },
+    "copilot-extension": {
+      "version": "0.3.0",
+      "path": ".github/skills/copilot-extension",
+      "description": "SDK reference for building and debugging Copilot CLI extensions"
+    },
+    "upgrade": {
+      "version": "0.3.0",
+      "path": ".github/skills/upgrade",
+      "description": "Pull new extensions and skills from the genesis template registry"
+    }
+  }
+}
