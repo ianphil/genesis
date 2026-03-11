@@ -1,5 +1,5 @@
 {
-  "version": "0.5.0",
+  "version": "0.6.0",
   "source": "ianphil/genesis",
   "extensions": {
     "cron": {
@@ -11,6 +11,11 @@
       "version": "0.5.1",
       "path": ".github/extensions/canvas",
       "description": "Display rich HTML content in the browser with SSE live reload"
+    },
+    "heartbeat": {
+      "version": "0.6.0",
+      "path": ".github/extensions/heartbeat",
+      "description": "Memory maintenance — consolidate session log to long-term memory, decay stale entries, reinforce active ones"
     }
   },
   "skills": {
