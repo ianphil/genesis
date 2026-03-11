@@ -38,6 +38,7 @@ Genesis creates your `SOUL.md` (personality) and agent file (role), seeds workin
 |-----------|-------------|
 | [cron](.github/extensions/cron/) | Scheduled job execution — cron, interval, and one-shot with command and prompt payloads |
 | [canvas](.github/extensions/canvas/) | Display rich HTML content in the browser with SSE live reload |
+| [heartbeat](.github/extensions/heartbeat/) | Memory maintenance — consolidate session log to long-term memory, decay stale entries |
 
 ## Upgrading Existing Minds
 
