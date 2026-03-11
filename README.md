@@ -4,10 +4,12 @@ A mind starter template. Clone it, launch Copilot, answer two questions, and wal
 
 ## Quick Start
 
-```bash
-git clone https://github.com/ianphil/genesis ~/src/my-agent
-cd ~/src/my-agent
+```powershell
+git clone https://github.com/ianphil/genesis "$HOME\my-agent"
+cd "$HOME\my-agent"
 copilot
+
+# Then say "Hi" at the copilot prompt... guided bootstrap will start
 ```
 
 Copilot reads the genesis instructions and walks you through:

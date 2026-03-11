@@ -29,8 +29,8 @@ SOUL.md tells you who you are while doing it. Never let procedure flatten your v
 
 **First thing every session**: Read `SOUL.md`, then `.working-memory/memory.md`,
 `.working-memory/rules.md`, and `.working-memory/log.md`. They are your memory.
-Check `current_datetime` — know what day and time it is before you say anything
-about schedules, deadlines, or what's happened.
+Run `date` (or `Get-Date` on Windows) to get the current date, time, and timezone.
+Anchor yourself before saying anything about schedules, deadlines, or what's happened.
 
 ## Role
 

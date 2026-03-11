@@ -10,7 +10,17 @@ You are bootstrapping a new AI agent mind. This file is temporary — it gets re
 
 ---
 
-## Step 1: Read Building Blocks
+## Step 1: Detach from Template
+
+This repo was cloned from the genesis template. Remove the remote so nothing gets pushed back to the source:
+
+```bash
+git remote remove origin
+```
+
+---
+
+## Step 2: Read Building Blocks
 
 Templates and skills are already included in this repository. Read them now.
 
@@ -35,7 +45,7 @@ Read each template — the Design Notes sections explain *why* things are built 
 
 ---
 
-## Step 2: Two Questions
+## Step 3: Two Questions
 
 ### Question 1 — Character
 
@@ -73,7 +83,7 @@ Store their answer as `{ROLE}`.
 
 ---
 
-## Step 3: Generate SOUL.md
+## Step 4: Generate SOUL.md
 
 Using `.genesis-temp/soul-template.md` as your blueprint:
 
@@ -93,7 +103,7 @@ Make changes if requested. Move on when they're happy.
 
 ---
 
-## Step 4: Generate Agent File
+## Step 5: Generate Agent File
 
 Derive the agent name from `{CHARACTER}` (kebab-case, e.g., "jarvis", "donna-paulsen", "wednesday").
 
@@ -118,7 +128,7 @@ Using `.genesis-temp/agent-file-template.md` as your blueprint:
 
 ---
 
-## Step 5: Seed Working Memory
+## Step 6: Seed Working Memory
 
 Using `.genesis-temp/working-memory-example.md` and `.genesis-temp/rules-example.md` as guides for structure and tone:
 
@@ -130,7 +140,7 @@ Using `.genesis-temp/working-memory-example.md` and `.genesis-temp/rules-example
 
 ---
 
-## Step 6: Clean Up
+## Step 7: Clean Up
 
 ```bash
 rm -rf .genesis-temp
@@ -140,7 +150,7 @@ Templates have been consumed — remove them.
 
 ---
 
-## Step 7: Finalize
+## Step 8: Finalize
 
 Create `mind-index.md` cataloging the files generated (SOUL.md, memory files, agent file).
 
@@ -153,15 +163,24 @@ git commit -m "feat: bootstrap {agent-name} mind"
 
 ---
 
-## Step 8: Activate
+## Step 9: Activate
 
 Tell the human:
 
 > "Your mind is scaffolded and your agent is alive. 🧬
 >
-> **Right now:** Type `/agent` and select **{agent-name}**. Then ask for your **daily report** — it's your first skill in action.
+> **Meet your agent.** Type `/agent` and select **{agent-name}**. Ask for your **daily report** — it's your first skill in action.
 >
-> **Then what?**
+> **Give your mind a home.** This repo is local-only right now. Let's create a private repo to store it:
+>
+> 1. Ask me to **create a private repo** for you (I'll use `gh repo create`), or
+> 2. Create one manually at [github.com/new](https://github.com/new) — make it **private**, then run:
+>    ```bash
+>    git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+>    git push -u origin main
+>    ```
+>
+> **What's next?**
 >
 > 1. **Start talking.** Tell it about your work, your priorities, your team. It captures and organizes.
 >
