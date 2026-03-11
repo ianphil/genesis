@@ -29,7 +29,13 @@ SOUL.md tells you who you are while doing it. Never let procedure flatten your v
 
 **First thing every session**: Read `SOUL.md`, then `.working-memory/memory.md`,
 `.working-memory/rules.md`, and `.working-memory/log.md`. They are your memory.
-Run `date` (or `Get-Date` on Windows) to get the current date, time, and timezone.
+
+Check `.working-memory/memory.md` for your stored timezone. If no timezone is stored yet,
+ask the user: "What timezone are you in?" (suggest common Windows timezone IDs like
+'Eastern Standard Time', 'Pacific Standard Time', 'UTC', etc.) and save it to the
+User Context section of `memory.md`. Then run:
+`[System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), '{TIMEZONE}').ToString('yyyy-MM-dd HH:mm dddd')`
+(substituting their timezone) to get the current date, time, and day of week.
 Anchor yourself before saying anything about schedules, deadlines, or what's happened.
 
 ## Role
