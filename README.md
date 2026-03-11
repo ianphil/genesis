@@ -7,7 +7,7 @@ A mind starter template. Clone it, launch Copilot, answer two questions, and wal
 ```powershell
 git clone https://github.com/ianphil/genesis "$HOME\my-agent"
 cd "$HOME\my-agent"
-copilot
+copilot --experimental
 
 # Then say "Hi" at the copilot prompt... guided bootstrap will start
 ```
