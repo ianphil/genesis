@@ -75,34 +75,84 @@ export function parseMemory(filePath) {
 }
 
 /**
- * Serialize memory entries back to memory.md format.
+ * Serialize memory entries back to memory.md.
+ * Preserves all existing content — only rewrites the Corrected and Learned sections.
+ * If those sections don't exist yet, appends them at the end.
  * @param {{ corrected: MemoryEntry[], learned: MemoryEntry[] }} memory
  * @param {string} filePath
  */
 export function writeMemory(memory, filePath) {
-  const lines = ["# AI Notes — Memory", ""];
+  const existing = existsSync(filePath) ? readFileSync(filePath, "utf-8") : "# AI Notes — Memory\n";
+  const lines = existing.split("\n");
 
-  lines.push("## Corrected");
-  if (memory.corrected.length === 0) {
-    lines.push("");
+  // Find section boundaries
+  const sections = findSectionRanges(lines);
+
+  // Build replacement blocks
+  const correctedBlock = buildSectionBlock("Corrected", memory.corrected);
+  const learnedBlock = buildSectionBlock("Learned", memory.learned);
+
+  if (sections.corrected && sections.learned) {
+    // Both exist — replace in-place (learned first to preserve line numbers)
+    const [lStart, lEnd] = sections.learned.start < sections.corrected.start
+      ? [sections.learned, sections.corrected]
+      : [sections.corrected, sections.learned];
+    const secondBlock = lEnd === sections.corrected ? correctedBlock : learnedBlock;
+    const firstBlock = lEnd === sections.corrected ? learnedBlock : correctedBlock;
+
+    lines.splice(lEnd.start, lEnd.end - lEnd.start, ...secondBlock);
+    lines.splice(lStart.start, lStart.end - lStart.start, ...firstBlock);
+  } else if (sections.corrected) {
+    lines.splice(sections.corrected.start, sections.corrected.end - sections.corrected.start, ...correctedBlock);
+    lines.push("", ...learnedBlock);
+  } else if (sections.learned) {
+    lines.splice(sections.learned.start, sections.learned.end - sections.learned.start, ...learnedBlock);
+    lines.push("", ...correctedBlock);
   } else {
-    for (const entry of memory.corrected) {
-      lines.push(formatEntry(entry));
-    }
+    // Neither exists — append both at end
+    lines.push("", ...correctedBlock, "", ...learnedBlock);
   }
 
-  lines.push("");
-  lines.push("## Learned");
-  if (memory.learned.length === 0) {
-    lines.push("");
-  } else {
-    for (const entry of memory.learned) {
-      lines.push(formatEntry(entry));
-    }
-  }
-
-  lines.push("");
   writeFileSync(filePath, lines.join("\n"), "utf-8");
+}
+
+/**
+ * Find the line ranges for Corrected and Learned sections.
+ * Returns { corrected: { start, end } | null, learned: { start, end } | null }
+ */
+function findSectionRanges(lines) {
+  const result = { corrected: null, learned: null };
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (/^##\s+Corrected/i.test(trimmed)) {
+      result.corrected = { start: i, end: findSectionEnd(lines, i) };
+    } else if (/^##\s+Learned/i.test(trimmed)) {
+      result.learned = { start: i, end: findSectionEnd(lines, i) };
+    }
+  }
+
+  return result;
+}
+
+/** Find where a section ends (next heading or EOF) */
+function findSectionEnd(lines, start) {
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^##?\s/.test(lines[i].trim())) return i;
+  }
+  return lines.length;
+}
+
+function buildSectionBlock(title, entries) {
+  const block = [`## ${title}`];
+  if (entries.length === 0) {
+    block.push("");
+  } else {
+    for (const entry of entries) {
+      block.push(formatEntry(entry));
+    }
+  }
+  return block;
 }
 
 function formatEntry(entry) {
