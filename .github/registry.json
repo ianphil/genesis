@@ -1,9 +1,9 @@
 {
-  "version": "0.8.2",
+  "version": "0.8.3",
   "source": "ianphil/genesis",
   "extensions": {
     "cron": {
-      "version": "0.1.2",
+      "version": "0.1.3",
       "path": ".github/extensions/cron",
       "description": "Scheduled job execution — cron, interval, and one-shot with prompt and command payloads"
     },
@@ -18,7 +18,7 @@
       "description": "Memory maintenance — consolidate session log to long-term memory, decay stale entries, reinforce active ones"
     },
     "code-exec": {
-      "version": "0.1.1",
+      "version": "0.1.2",
       "path": ".github/extensions/code-exec",
       "description": "Universal MCP connector — discover, call, and orchestrate enterprise tools with progressive disclosure"
     }

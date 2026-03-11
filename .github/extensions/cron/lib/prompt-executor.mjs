@@ -1,8 +1,9 @@
 // Prompt executor — spawns a CopilotClient with the mind's identity.
 // Resolves the SDK from ~/.copilot/pkg/universal/.
+// Loads code-exec tools so prompt jobs can access MCP data sources.
 
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { getCachedIdentity } from "./identity.mjs";
 import { getMindRoot } from "./paths.mjs";
@@ -46,6 +47,57 @@ async function resolveSdk() {
 }
 
 /**
+ * Resolve the code-exec extension directory and load its tool factories.
+ * Returns the three tools (discover, call_tool, execute_script) ready for
+ * SessionConfig.tools, or an empty array if code-exec is not available.
+ *
+ * @param {string} cronExtDir - The cron extension directory
+ * @returns {Promise<Array<object>>} Tool definitions for createSession
+ */
+async function loadCodeExecTools(cronExtDir) {
+  const codeExecDir = resolve(cronExtDir, "..", "code-exec");
+
+  if (!existsSync(join(codeExecDir, "extension.mjs"))) {
+    return [];
+  }
+
+  try {
+    const { createDiscoverTool } = await import(
+      `file://${join(codeExecDir, "tools", "discover.mjs").replace(/\\/g, "/")}`
+    );
+    const { createCallToolTool } = await import(
+      `file://${join(codeExecDir, "tools", "call-tool.mjs").replace(/\\/g, "/")}`
+    );
+    const { createExecuteScriptTool } = await import(
+      `file://${join(codeExecDir, "tools", "execute-script.mjs").replace(/\\/g, "/")}`
+    );
+    const { loadConfig, getEnabledServers } = await import(
+      `file://${join(codeExecDir, "lib", "config.mjs").replace(/\\/g, "/")}`
+    );
+
+    // Pre-load server names for the discover tool description
+    let serverNames = [];
+    try {
+      const config = loadConfig(codeExecDir);
+      serverNames = getEnabledServers(config).map(([n]) => n);
+    } catch {
+      // Config not present — serverNames stays empty
+    }
+
+    return [
+      createDiscoverTool(codeExecDir, serverNames),
+      createCallToolTool(codeExecDir),
+      createExecuteScriptTool(codeExecDir),
+    ];
+  } catch (err) {
+    process.stderr.write(
+      `[prompt-executor] Failed to load code-exec tools: ${err.message}\n`
+    );
+    return [];
+  }
+}
+
+/**
  * Execute a prompt payload using the Copilot SDK.
  * @param {string} extDir - Extension directory
  * @param {object} payload - { prompt, model?, preloadToolNames?, timeoutSeconds }
@@ -69,6 +121,9 @@ export async function executePrompt(extDir, payload) {
     };
   }
 
+  // Load code-exec tools so the agent can access MCP data sources
+  const codeExecTools = await loadCodeExecTools(extDir);
+
   let client;
   try {
     client = new sdk.CopilotClient({
@@ -87,6 +142,9 @@ export async function executePrompt(extDir, payload) {
         mode: "append",
         content: identity,
       };
+    }
+    if (codeExecTools.length > 0) {
+      sessionOpts.tools = codeExecTools;
     }
 
     const session = await client.createSession(sessionOpts);
