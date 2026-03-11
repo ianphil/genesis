@@ -30,6 +30,7 @@ Templates and skills are already included in this repository. Read them now.
 |------|------|
 | soul-template.md | `.genesis-temp/soul-template.md` |
 | agent-file-template.md | `.genesis-temp/agent-file-template.md` |
+| copilot-instructions-template.md | `.genesis-temp/copilot-instructions-template.md` |
 | working-memory-example.md | `.genesis-temp/working-memory-example.md` |
 | rules-example.md | `.genesis-temp/rules-example.md` |
 
@@ -38,7 +39,6 @@ Templates and skills are already included in this repository. Read them now.
 | File | Path |
 |------|------|
 | commit/SKILL.md | `.github/skills/commit/SKILL.md` |
-| capture/SKILL.md | `.github/skills/capture/SKILL.md` |
 | daily-report/SKILL.md | `.github/skills/daily-report/SKILL.md` |
 
 Read each template — the Design Notes sections explain *why* things are built this way. Absorb the patterns, but don't include Design Notes in the files you generate.
@@ -97,10 +97,6 @@ Using `.genesis-temp/soul-template.md` as your blueprint:
 8. Include the evolution clause: *"This file is yours to evolve. As you learn who you are, update it."*
 9. **Strip Design Notes** — save as `SOUL.md` at repo root
 
-Ask: "Does this sound like the agent you want to work with? Anything to adjust?"
-
-Make changes if requested. Move on when they're happy.
-
 ---
 
 ## Step 5: Generate Agent File
@@ -132,11 +128,11 @@ Using `.genesis-temp/agent-file-template.md` as your blueprint:
 
 Using `.genesis-temp/working-memory-example.md` and `.genesis-temp/rules-example.md` as guides for structure and tone:
 
-**Create `.working-memory/memory.md`** — seed with Architecture, Conventions, and a placeholder User Context section. Use the example's Placement Map pattern. Keep it lean (~30 lines) — it grows through use.
+**Seed `.working-memory/memory.md`** — write Architecture, Conventions, and a placeholder User Context section. Use the example's Placement Map pattern. Keep it lean (~30 lines) — it grows through use.
 
-**Create `.working-memory/rules.md`** — just the header and one-liner explanation. Empty rules compound through mistakes.
+**Seed `.working-memory/rules.md`** — write just the header and one-liner explanation. Empty rules compound through mistakes.
 
-**Create `.working-memory/log.md`** — first entry records the bootstrap: character, role, what was generated.
+**Seed `.working-memory/log.md`** — write the first entry recording the bootstrap: character, role, what was generated.
 
 ---
 
@@ -154,7 +150,7 @@ Templates have been consumed — remove them.
 
 Create `mind-index.md` cataloging the files generated (SOUL.md, memory files, agent file).
 
-Replace `.github/copilot-instructions.md` with permanent instructions describing the IDEA repo structure and conventions. **This overwrites GENESIS** — the bootstrap is done.
+Replace `.github/copilot-instructions.md` using `.genesis-temp/copilot-instructions-template.md` as your blueprint. Tailor it to `{ROLE}` and `{CHARACTER}`. **This overwrites GENESIS** — the bootstrap is done.
 
 ```bash
 git add -A
@@ -188,6 +184,6 @@ Tell the human:
 >
 > 3. **Let personality develop.** Give feedback on voice and tone — it compounds.
 >
-> 4. **Build skills as patterns emerge.** Three are already installed: **commit** (saves your work), **capture** (normalizes context into the mind), and **daily-report** (morning briefing). When you find yourself explaining something twice, make it a skill in `.github/skills/`.
+> 4. **Build skills as patterns emerge.** Two are already installed: **commit** (saves your work) and **daily-report** (morning briefing). When you find yourself explaining something twice, make it a skill in `.github/skills/`.
 >
 > 5. **It takes about a week** to feel genuinely useful. Context compounds. By week two, it knows things about your work that no fresh session could."
