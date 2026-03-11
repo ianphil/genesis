@@ -7,54 +7,50 @@ description: Pull new extensions and skills from the genesis template registry. 
 
 Check the genesis template for new or updated extensions and skills, then install them.
 
-## Configuration
+**This skill includes `upgrade.js`** — a script that handles all registry comparison, file downloading, and installation deterministically. Your job is to run it and handle UX.
 
-The upgrade skill needs to know the source registry. It reads from the local `.github/registry.json`:
+## Prerequisites
+
+- `gh` CLI must be authenticated (`gh auth status`)
+- `.github/registry.json` must exist with a `source` field (e.g. `"source": "ianphil/genesis"`)
+- If `registry.json` is missing or has no `source`, ask the user for the source repo (default: `ianphil/genesis`) and create it
+
+## Phase 1: Check for Updates
+
+Run the check command from the repo root:
+
+```bash
+node .github/skills/upgrade/upgrade.js check
+```
+
+This outputs JSON with the diff:
 
 ```json
 {
-  "source": "ianphil/genesis"
+  "source": "ianphil/genesis",
+  "remoteVersion": "0.8.0",
+  "localVersion": "0.7.2",
+  "new": [{"name": "foo", "type": "skill", "version": "0.2.0", "description": "..."}],
+  "updated": [{"name": "daily-report", "type": "skill", "version": "0.2.0", "localVersion": "0.1.0", "description": "..."}],
+  "current": [{"name": "commit", "type": "skill", "version": "0.1.0", "description": "..."}],
+  "localOnly": []
 }
 ```
 
-If `.github/registry.json` does not exist locally, ask the user for the source repo (default: `ianphil/genesis`), then create the file with `source` set and empty `extensions`/`skills` objects.
+## Phase 2: Present Results
 
-## Phase 1: Fetch Remote Registry
-
-Use the GitHub MCP tool to fetch the remote registry:
-
-```
-github-mcp-server-get_file_contents:
-  owner: {source_owner}
-  repo: {source_repo}
-  path: .github/registry.json
-```
-
-Parse the JSON response. This is the **remote registry**.
-
-Read the local `.github/registry.json`. This is the **local registry**.
-
-## Phase 2: Diff and Present
-
-Compare remote vs local. For each item in remote `extensions` and `skills`:
-
-- **🆕 New** — exists in remote but not in local
-- **⬆️ Update available** — exists in both, remote version > local version
-- **✅ Up to date** — exists in both, same version
-- **⚠️ Local-only** — exists in local but not in remote (user-created, leave alone)
-
-Present results to the user:
+Format the JSON into a human-readable summary:
 
 ```
 ═══════════════════════════════════════════
   📦 REGISTRY UPDATE CHECK
-  Source: ianphil/genesis (remote v{version})
-  Local: v{version}
+  Source: ianphil/genesis (remote v0.8.0)
+  Local: v0.7.2
 ═══════════════════════════════════════════
 
 📦 Extensions:
   🆕 cron v0.3.0 — Scheduled job execution
-  
+
 📄 Skills:
   ✅ commit v0.3.0 — up to date
   ⬆️ daily-report v0.4.0 — update available (local: v0.3.0)
@@ -63,66 +59,38 @@ Present results to the user:
 Install all new/updated? Or pick specific ones.
 ```
 
-Use the `ask_user` tool to let the user select what to install. Provide a multi-select with all new/updated items, defaulting to all selected.
+Use the `ask_user` tool to let the user select what to install.
+
+If everything is up to date (`new` and `updated` are both empty), say so and stop.
 
 ## Phase 3: Install Selected Items
 
-For each selected item, perform these steps **in order**:
+Run the install command with a comma-separated list of selected item names:
 
-### 3a. Fetch the directory tree
-
-Use GitHub API to get the directory listing:
-
-```
-github-mcp-server-get_file_contents:
-  owner: {source_owner}
-  repo: {source_repo}
-  path: {item.path}
+```bash
+node .github/skills/upgrade/upgrade.js install cron,daily-report,copilot-extension
 ```
 
-This returns the directory listing. For each file in the tree, recursively fetch contents.
+This:
+- Fetches the full file tree from the remote repo (single API call)
+- Downloads and writes every file for each selected item
+- Runs `npm install --production` if a `package.json` exists in the item's path
+- Updates `.github/registry.json` with new versions
 
-### 3b. Write files locally
+Output JSON:
 
-For each file fetched:
-- If the file exists locally, overwrite it using the `edit` tool (replace full content) or write via shell
-- If the file does not exist, create parent directories and use the `create` tool
-- Preserve the directory structure exactly as it appears in the remote
-
-**Use shell for reliability:**
-
-```powershell
-# Create directory structure
-New-Item -ItemType Directory -Path "{item.path}" -Force
-
-# Write each file (base64 decode from GitHub API response)
+```json
+{
+  "installed": [{"name": "cron", "type": "extension", "version": "0.3.0", "files": 14, "npmInstalled": true}],
+  "updated": [{"name": "daily-report", "type": "skill", "version": "0.4.0", "files": 1, "from": "0.3.0"}],
+  "errors": [],
+  "registryUpdated": true
+}
 ```
-
-For fetching file trees recursively, use multiple parallel `get_file_contents` calls for efficiency.
-
-### 3c. Post-install
-
-After writing files:
-
-1. **If `package.json` exists** in the installed path (extensions typically have one):
-   ```powershell
-   cd {item.path} && npm install --production
-   ```
-
-2. **If it's an extension**, reload extensions:
-   ```
-   extensions_reload
-   ```
-
-### 3d. Update local registry
-
-After all items are installed, update `.github/registry.json`:
-- Set the item's version to match the remote version
-- Add new items to the appropriate section (`extensions` or `skills`)
-- Update the top-level `version` to match remote
-- Preserve any local-only items
 
 ## Phase 4: Summary
+
+Format the install results:
 
 ```
 ═══════════════════════════════════════════
@@ -130,25 +98,25 @@ After all items are installed, update `.github/registry.json`:
 ═══════════════════════════════════════════
 
 Installed:
-  📦 cron v0.3.0 — extension
-  📄 copilot-extension v0.3.0 — skill
+  📦 cron v0.3.0 — 14 files, npm installed
+  📄 copilot-extension v0.3.0 — 1 file
 
 Updated:
-  📄 daily-report v0.3.0 → v0.4.0
+  📄 daily-report v0.3.0 → v0.4.0 — 1 file
 
-Local registry updated to v{version}.
+Local registry updated to v0.8.0.
 ```
 
 If any extensions were installed or updated, remind the user:
-> "New extensions are loaded. Restart your Copilot session to activate them, or I can reload extensions now."
+> "New extensions installed. Restart your Copilot session to activate them, or I can reload extensions now."
+
+If there are errors in the output, report them clearly and suggest retrying individual items.
 
 ## Rules
 
-- **Never delete local-only items** — if something exists locally but not in the remote registry, leave it alone
-- **Never modify files outside of `.github/extensions/` and `.github/skills/`** — the upgrade skill only touches these paths
+- **Never delete local-only items** — the script preserves them automatically
+- **Never modify files outside of `.github/extensions/` and `.github/skills/`** — the script only touches these paths
 - **Always show the diff before installing** — never auto-install without user confirmation
-- **Preserve `.github/registry.json` local-only entries** — only update/add items from remote
 - **Skip items the user doesn't select** — respect their choices
-- **If GitHub API fails**, report the error and continue with other items
-- **If `source` is not set**, ask the user and default to `ianphil/genesis`
-- **Version comparison** — use semver: split on `.`, compare major, minor, patch numerically
+- **If `gh` CLI is not available**, report the error and stop — the script requires it
+- **If the script fails**, show the error output and suggest checking `gh auth status`

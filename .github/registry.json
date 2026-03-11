@@ -1,5 +1,5 @@
 {
-  "version": "0.7.2",
+  "version": "0.8.0",
   "source": "ianphil/genesis",
   "extensions": {
     "cron": {
@@ -40,7 +40,7 @@
       "description": "SDK reference for building and debugging Copilot CLI extensions"
     },
     "upgrade": {
-      "version": "0.1.0",
+      "version": "0.2.0",
       "path": ".github/skills/upgrade",
       "description": "Pull new extensions and skills from the genesis template registry"
     }
