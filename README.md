@@ -47,6 +47,8 @@ Minds cloned from genesis can pull new extensions and skills at any time:
 > Check for updates from genesis
 ```
 
+![Upgrade](https://github.com/user-attachments/assets/36e47aa0-7981-4e4a-9a52-862771215622)
+
 The **upgrade** skill fetches the latest registry from this repo via GitHub API, shows what's new or updated, and installs your selections. No git remotes needed — it works through the agent's existing tools.
 
 ## Prerequisites
