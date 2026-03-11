@@ -2,6 +2,16 @@
 
 A Copilot CLI extension that adds scheduled job execution. Create jobs that run on a cron schedule, at fixed intervals, or fire once at a specific time. Jobs can execute shell commands or send prompts to the AI.
 
+## Setup
+
+After cloning or installing this extension, install npm dependencies:
+
+```bash
+cd .github/extensions/cron && npm install --no-fund --no-audit
+```
+
+> **Note:** The Copilot CLI does not auto-install npm dependencies for extensions. If the extension fails to load, this is almost always the fix.
+
 ## Quick Example
 
 > "Schedule a job that checks my open PRs every morning at 9am and writes a summary to my inbox"

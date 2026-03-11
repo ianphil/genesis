@@ -2,6 +2,16 @@
 
 A Copilot CLI extension that lets agents display rich HTML content in the browser. Write a dashboard, render a report, or build an interactive form — the agent generates HTML and it appears in Edge with live reload.
 
+## Setup
+
+After cloning or installing this extension, install npm dependencies (if any are added later):
+
+```bash
+cd .github/extensions/canvas && npm install --no-fund --no-audit
+```
+
+> **Note:** The Copilot CLI does not auto-install npm dependencies for extensions. Canvas currently has zero dependencies, but run this if the extension fails to load after adding packages.
+
 ## Quick Example
 
 > "Show me a visual summary of my open PRs"
