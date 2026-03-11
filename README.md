@@ -30,6 +30,12 @@ Genesis creates your `SOUL.md` (personality) and agent file (role), seeds workin
 | `domains/`, `initiatives/`, `expertise/`, `Archive/` | IDEA knowledge taxonomy |
 | `inbox/` | Quick-capture triage zone |
 
+## Extensions
+
+| Extension | Description |
+|-----------|-------------|
+| [cron](.github/extensions/cron/) | Scheduled job execution — cron, interval, and one-shot with command and prompt payloads |
+
 ## Upgrading Existing Minds
 
 Minds cloned from genesis can pull new extensions and skills at any time:
