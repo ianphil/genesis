@@ -12,30 +12,37 @@ import { getMindRoot } from "./paths.mjs";
  * @returns {Promise<{ CopilotClient: any }>}
  */
 async function resolveSdk() {
-  const sdkBase = join(homedir(), ".copilot", "pkg", "universal");
+  const pkgRoot = join(homedir(), ".copilot", "pkg");
 
-  let versions;
-  try {
-    versions = readdirSync(sdkBase)
-      .filter((d) => !d.startsWith("."))
-      .sort();
-  } catch (err) {
-    throw new Error(`Cannot find Copilot SDK at ${sdkBase}: ${err.message}`);
+  // Platform-specific directory first, then universal fallback
+  const platformDir = `${process.platform}-${process.arch}`;
+  const searchDirs = [join(pkgRoot, platformDir), join(pkgRoot, "universal")];
+
+  for (const sdkBase of searchDirs) {
+    let versions;
+    try {
+      versions = readdirSync(sdkBase)
+        .filter((d) => !d.startsWith("."))
+        .sort();
+    } catch {
+      continue; // directory doesn't exist, try next
+    }
+
+    if (versions.length === 0) continue;
+
+    const latest = versions[versions.length - 1];
+    const sdkPath = join(sdkBase, latest, "copilot-sdk", "index.js");
+
+    try {
+      return await import(`file://${sdkPath.replace(/\\/g, "/")}`);
+    } catch {
+      continue; // SDK not in this version dir, try next
+    }
   }
 
-  if (versions.length === 0) {
-    throw new Error(`No SDK versions found in ${sdkBase}`);
-  }
-
-  // Use the latest version
-  const latest = versions[versions.length - 1];
-  const sdkPath = join(sdkBase, latest, "copilot-sdk", "index.js");
-
-  try {
-    return await import(`file://${sdkPath.replace(/\\/g, "/")}`);
-  } catch (err) {
-    throw new Error(`Failed to import SDK from ${sdkPath}: ${err.message}`);
-  }
+  throw new Error(
+    `Cannot find Copilot SDK in any of: ${searchDirs.join(", ")}`
+  );
 }
 
 /**
@@ -65,44 +72,35 @@ export async function executePrompt(extDir, payload) {
   let client;
   try {
     client = new sdk.CopilotClient({
-      Cwd: mindRoot,
-      AutoStart: true,
-      UseStdio: true,
+      cwd: mindRoot,
+      autoStart: true,
     });
 
     const sessionOpts = {
-      Streaming: true,
+      onPermissionRequest: sdk.approveAll,
     };
     if (payload.model) {
-      sessionOpts.Model = payload.model;
+      sessionOpts.model = payload.model;
     }
     if (identity) {
-      sessionOpts.SystemMessage = {
-        Mode: "append",
-        Content: identity,
+      sessionOpts.systemMessage = {
+        mode: "append",
+        content: identity,
       };
     }
 
-    const session = await client.CreateSessionAsync(sessionOpts);
+    const session = await client.createSession(sessionOpts);
 
-    // Send the prompt and collect the response
-    const result = await Promise.race([
-      collectResponse(session, payload.prompt),
-      timeout(timeoutMs),
-    ]);
+    const response = await session.sendAndWait(
+      { prompt: payload.prompt },
+      timeoutMs,
+    );
 
-    if (result.timedOut) {
-      return {
-        success: false,
-        output: "",
-        durationMs: Date.now() - startTime,
-        error: `Prompt timed out after ${payload.timeoutSeconds}s`,
-      };
-    }
+    const output = response?.data?.content || response?.content || "";
 
     return {
       success: true,
-      output: result.content || "",
+      output,
       durationMs: Date.now() - startTime,
     };
   } catch (err) {
@@ -113,41 +111,10 @@ export async function executePrompt(extDir, payload) {
       error: err.message,
     };
   } finally {
-    // Guaranteed cleanup — never leak sessions
     try {
-      if (client && typeof client.Dispose === "function") {
-        client.Dispose();
-      } else if (client && typeof client.dispose === "function") {
-        client.dispose();
+      if (client && typeof client.stop === "function") {
+        client.stop();
       }
     } catch { /* best effort */ }
   }
-}
-
-/** Collect the response from a session after sending a prompt. */
-async function collectResponse(session, prompt) {
-  return new Promise((resolve, reject) => {
-    let content = "";
-
-    session.on("AssistantMessageEvent", (event) => {
-      content = event.Content || event.content || content;
-    });
-
-    session.on("SessionErrorEvent", (event) => {
-      reject(new Error(event.Message || event.message || "Session error"));
-    });
-
-    session.on("SessionIdleEvent", () => {
-      resolve({ content, timedOut: false });
-    });
-
-    session.SendAsync(prompt).catch(reject);
-  });
-}
-
-/** Timeout helper that resolves with a marker. */
-function timeout(ms) {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve({ timedOut: true }), ms);
-  });
 }

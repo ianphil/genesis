@@ -12,16 +12,19 @@ export function executeCommand(payload) {
     const startTime = Date.now();
     const timeoutMs = (payload.timeoutSeconds || 300) * 1000;
 
-    const args = payload.arguments ? payload.arguments.split(/\s+/) : [];
+    const fullCommand = payload.arguments
+      ? `${payload.command} ${payload.arguments}`
+      : payload.command;
     const options = {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
+      shell: true,
       cwd: payload.workingDirectory || undefined,
     };
 
     let child;
     try {
-      child = spawn(payload.command, args, options);
+      child = spawn(fullCommand, [], options);
     } catch (err) {
       resolve({
         success: false,
