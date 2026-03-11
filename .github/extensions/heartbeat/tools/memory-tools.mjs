@@ -8,7 +8,7 @@ import { parseMemory, parseLog } from "../lib/parser.mjs";
 import { getMemoryPath, getLogPath } from "../lib/paths.mjs";
 import { removeLogEntries } from "../lib/parser.mjs";
 
-export function createMemoryTools(mindRoot) {
+export function createMemoryTools(mindRoot, toast) {
   return [
     {
       name: "heartbeat_consolidate",
@@ -185,6 +185,9 @@ export function createMemoryTools(mindRoot) {
             lines.push(`Next decay candidate: "${oldest.text}" (${oldest.age}d, decays at 90d)`);
           }
         }
+
+        const total = memory.corrected.length + memory.learned.length;
+        toast("Heartbeat", `${total} memories · ${logEntries.length} pending`);
 
         return lines.join("\n");
       },
