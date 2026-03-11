@@ -8,6 +8,7 @@ import { joinSession } from "@github/copilot-sdk/extension";
 import { createMemoryTools } from "./tools/memory-tools.mjs";
 import { getMindRoot } from "./lib/paths.mjs";
 import { ensureHeartbeatJob } from "./lib/ensure-job.mjs";
+import { toast } from "./lib/toast.mjs";
 
 const mindRoot = getMindRoot();
 
@@ -21,5 +22,5 @@ const session = await joinSession({
       }
     },
   },
-  tools: createMemoryTools(mindRoot),
+  tools: createMemoryTools(mindRoot, toast),
 });
