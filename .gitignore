@@ -16,4 +16,5 @@ Thumbs.db
 
 # Canvas extension runtime data
 .github/extensions/canvas/data/content/
+!.github/extensions/canvas/data/content/test-canvas.html
 .github/extensions/canvas/node_modules/
