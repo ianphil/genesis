@@ -6,3 +6,10 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Cron extension runtime data (local state, not version controlled)
+.github/extensions/cron/data/jobs/*.json
+.github/extensions/cron/data/history/*.json
+.github/extensions/cron/data/engine.lock
+.github/extensions/cron/data/engine.log
+.github/extensions/cron/node_modules/
