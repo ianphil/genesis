@@ -1,6 +1,3 @@
-# Extension runtime data (not version-controlled)
-.github/extensions/cron/data/
-
 # OS
 .DS_Store
 Thumbs.db

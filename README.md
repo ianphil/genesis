@@ -23,7 +23,6 @@ Genesis creates your `SOUL.md` (personality) and agent file (role), seeds workin
 |-----------|---------|
 | `.working-memory/` | Persistent memory across sessions (memory.md, rules.md, log.md) |
 | `.github/skills/` | Pre-built skills (commit, capture, daily-report) |
-| `.github/extensions/cron/` | Scheduled task engine — command and prompt jobs on a cron schedule |
 | `domains/`, `initiatives/`, `expertise/`, `Archive/` | IDEA knowledge taxonomy |
 | `inbox/` | Quick-capture triage zone |
 
@@ -31,7 +30,6 @@ Genesis creates your `SOUL.md` (personality) and agent file (role), seeds workin
 
 - [GitHub Copilot CLI](https://github.com/githubnext/copilot-cli) installed and on PATH
 - An active [Copilot subscription](https://github.com/features/copilot/plans)
-- Node.js (for the cron extension engine)
 
 ## How It Works
 
