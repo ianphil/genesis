@@ -2,6 +2,8 @@
 
 A mind starter template. Clone it, launch Copilot, answer two questions, and walk away with a fully configured personal AI agent.
 
+![Genesis](https://github.com/user-attachments/assets/29e82f76-d291-49ca-96d4-33417bce23e6)
+
 ## Quick Start
 
 ```powershell
