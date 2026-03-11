@@ -126,13 +126,15 @@ Using `.genesis-temp/agent-file-template.md` as your blueprint:
 
 ## Step 6: Seed Working Memory
 
+The `.working-memory/` directory already exists with stub files. **Do not create new files — edit the existing ones.**
+
 Using `.genesis-temp/working-memory-example.md` and `.genesis-temp/rules-example.md` as guides for structure and tone:
 
-**Seed `.working-memory/memory.md`** — write Architecture, Conventions, and a placeholder User Context section. Use the example's Placement Map pattern. Keep it lean (~30 lines) — it grows through use.
+**`.working-memory/memory.md`** — overwrite with Architecture, Conventions, and a placeholder User Context section. Use the example's Placement Map pattern. Keep it lean (~30 lines) — it grows through use.
 
-**Seed `.working-memory/rules.md`** — write just the header and one-liner explanation. Empty rules compound through mistakes.
+**`.working-memory/rules.md`** — overwrite with just the header and one-liner explanation. Empty rules compound through mistakes.
 
-**Seed `.working-memory/log.md`** — write the first entry recording the bootstrap: character, role, what was generated.
+**`.working-memory/log.md`** — overwrite with the first entry recording the bootstrap: character, role, what was generated.
 
 ---
 
