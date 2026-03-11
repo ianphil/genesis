@@ -185,6 +185,8 @@ ${html}
       handler: async (args) => {
         if (args.name === "all") {
           const count = openCanvases.size;
+          server.closeClients();
+          await new Promise((r) => setTimeout(r, 200));
           openCanvases.clear();
           await server.stop();
           return `Closed ${count} canvas(es) and stopped the server.`;
@@ -195,6 +197,8 @@ ${html}
           return `Error: canvas '${args.name}' not found.`;
         }
 
+        server.closeClients();
+        await new Promise((r) => setTimeout(r, 200));
         openCanvases.delete(args.name);
 
         // Stop server if no canvases remain

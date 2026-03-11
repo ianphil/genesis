@@ -20,15 +20,18 @@ const MIME_TYPES = {
 const BRIDGE_SCRIPT = `
 <script>
 (function() {
-  // SSE live reload
-  const es = new EventSource('//__canvas_events');
-  es.onmessage = function() { location.reload(); };
-  es.onerror = function() { setTimeout(function() { location.reload(); }, 2000); };
+  // SSE live reload — only reload on explicit "reload" events.
+  // EventSource auto-reconnects on errors; no manual reload needed.
+  var es = new EventSource('/_sse');
+  es.onmessage = function(e) {
+    if (e.data === 'reload') { location.reload(); }
+    if (e.data === 'close') { window.close(); }
+  };
 
   // Back-channel: canvas pages can send actions to the agent
   window.canvas = {
     sendAction: function(name, data) {
-      return fetch('//__canvas_action', {
+      return fetch('/_action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: name, data: data || {}, timestamp: Date.now() })
@@ -51,7 +54,7 @@ export function createCanvasServer(contentDir, onAction) {
 
   function handleRequest(req, res) {
     // SSE endpoint
-    if (req.url === "//__canvas_events") {
+    if (req.url === "/_sse") {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -67,7 +70,7 @@ export function createCanvasServer(contentDir, onAction) {
     }
 
     // Action back-channel
-    if (req.url === "//__canvas_action" && req.method === "POST") {
+    if (req.url === "/_action" && req.method === "POST") {
       let body = "";
       req.on("data", (chunk) => { body += chunk; });
       req.on("end", () => {
@@ -153,6 +156,15 @@ export function createCanvasServer(contentDir, onAction) {
       for (const client of sseClients) {
         try {
           client.write("data: reload\n\n");
+        } catch { /* client disconnected */ }
+      }
+    },
+
+    /** Push an SSE close event to all connected clients. */
+    closeClients() {
+      for (const client of sseClients) {
+        try {
+          client.write("data: close\n\n");
         } catch { /* client disconnected */ }
       }
     },
