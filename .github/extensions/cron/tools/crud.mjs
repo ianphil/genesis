@@ -54,7 +54,6 @@ export function createCrudTools(extDir) {
           arguments: { type: "string", description: "Command-line arguments. Optional for command payloads." },
           workingDirectory: { type: "string", description: "Working directory for command. Defaults to user home." },
           prompt: { type: "string", description: "The prompt to send to the LLM. Required for prompt payloads." },
-          agent: { type: "string", description: "Agent to route the prompt to (e.g. 'jarvis'). Maps to a .agent.md file. Optional for prompt payloads." },
           model: { type: "string", description: "Model override for prompt payloads (e.g. 'claude-sonnet-4.5')." },
           timeoutSeconds: { type: "number", description: "Timeout in seconds. Default: 300 for commands, 120 for prompts." },
         },
@@ -90,7 +89,6 @@ export function createCrudTools(extDir) {
         } else if (args.payloadType === "prompt") {
           if (!args.prompt) return "Error: prompt is required for prompt payloads.";
           payload.prompt = args.prompt;
-          payload.agent = args.agent || null;
           payload.model = args.model || null;
           payload.preloadToolNames = null;
           payload.timeoutSeconds = args.timeoutSeconds || 120;
@@ -198,7 +196,6 @@ export function createCrudTools(extDir) {
           arguments: { type: "string", description: "New arguments" },
           workingDirectory: { type: "string", description: "New working directory" },
           prompt: { type: "string", description: "New prompt text" },
-          agent: { type: "string", description: "New agent name" },
           model: { type: "string", description: "New model" },
           timeoutSeconds: { type: "number", description: "New timeout in seconds" },
         },
@@ -250,7 +247,6 @@ export function createCrudTools(extDir) {
         if (args.arguments !== undefined) { job.payload.arguments = args.arguments; changes.push("arguments"); }
         if (args.workingDirectory !== undefined) { job.payload.workingDirectory = args.workingDirectory; changes.push("workingDirectory"); }
         if (args.prompt !== undefined) { job.payload.prompt = args.prompt; changes.push("prompt"); }
-        if (args.agent !== undefined) { job.payload.agent = args.agent; changes.push("agent"); }
         if (args.model !== undefined) { job.payload.model = args.model; changes.push("model"); }
         if (args.timeoutSeconds !== undefined) { job.payload.timeoutSeconds = args.timeoutSeconds; changes.push("timeout"); }
 
