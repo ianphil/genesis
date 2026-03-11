@@ -1,5 +1,5 @@
 {
-  "version": "0.7.1",
+  "version": "0.7.2",
   "source": "ianphil/genesis",
   "extensions": {
     "cron": {
@@ -8,17 +8,17 @@
       "description": "Scheduled job execution — cron, interval, and one-shot with prompt and command payloads"
     },
     "canvas": {
-      "version": "0.1.1",
+      "version": "0.1.2",
       "path": ".github/extensions/canvas",
       "description": "Display rich HTML content in the browser with SSE live reload"
     },
     "heartbeat": {
-      "version": "0.1.1",
+      "version": "0.1.2",
       "path": ".github/extensions/heartbeat",
       "description": "Memory maintenance — consolidate session log to long-term memory, decay stale entries, reinforce active ones"
     },
     "code-exec": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "path": ".github/extensions/code-exec",
       "description": "Universal MCP connector — discover, call, and orchestrate enterprise tools with progressive disclosure"
     }

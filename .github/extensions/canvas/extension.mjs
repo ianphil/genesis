@@ -34,7 +34,7 @@ const session = await joinSession({
   onPermissionRequest: approveAll,
   hooks: {
     onSessionStart: async () => {
-      await session.log("Canvas extension loaded");
+      console.error("canvas: extension loaded");
     },
   },
   tools: createCanvasTools(contentDir, server, onAction),

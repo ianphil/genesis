@@ -18,7 +18,7 @@ const session = await joinSession({
     onSessionStart: async () => {
       const { created } = ensureHeartbeatJob(mindRoot);
       if (created) {
-        await session.log("Heartbeat cron job created (every 4 hours)");
+        console.error("heartbeat: cron job created (every 4 hours)");
       }
     },
   },

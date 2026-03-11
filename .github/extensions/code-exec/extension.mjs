@@ -16,21 +16,22 @@ import { getMcpClient } from "./lib/mcp-client.mjs";
 
 const extDir = getExtensionDir();
 
+// Pre-load server names for the tool description (no MCP connections yet)
+let serverNames = [];
+try {
+  const config = loadConfig(extDir);
+  serverNames = getEnabledServers(config).map(([n]) => n);
+} catch {
+  // Config not present — serverNames stays empty
+}
+
 const session = await joinSession({
   onPermissionRequest: approveAll,
   hooks: {
     onSessionStart: async () => {
-      try {
-        const config = loadConfig(extDir);
-        const servers = getEnabledServers(config);
-        const names = servers.map(([n]) => n).join(", ");
-        await session.log(
-          `code-exec: ${servers.length} MCP server(s) available — ${names}`
-        );
-      } catch (err) {
-        await session.log(
-          `code-exec: ${err.message}`,
-          { level: "warning" }
+      if (serverNames.length > 0) {
+        console.error(
+          `code-exec: ${serverNames.length} MCP server(s) available — ${serverNames.join(", ")}`
         );
       }
     },
@@ -44,7 +45,7 @@ const session = await joinSession({
     },
   },
   tools: [
-    createDiscoverTool(extDir),
+    createDiscoverTool(extDir, serverNames),
     createCallToolTool(extDir),
     createExecuteScriptTool(extDir),
   ],
