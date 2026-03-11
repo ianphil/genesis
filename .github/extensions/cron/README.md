@@ -2,6 +2,26 @@
 
 A Copilot CLI extension that adds scheduled job execution. Create jobs that run on a cron schedule, at fixed intervals, or fire once at a specific time. Jobs can execute shell commands or send prompts to the AI.
 
+## Quick Example
+
+> "Schedule a job that checks my open PRs every morning at 9am and writes a summary to my inbox"
+
+That's it. The agent creates a **prompt job** — a scheduled AI session that runs autonomously:
+
+```
+cron_create:
+  name: morning-pr-review
+  scheduleType: cron
+  cronExpression: "0 9 * * 1-5"
+  timezone: "America/New_York"
+  payloadType: prompt
+  prompt: "Check my open GitHub PRs. For each one, note the age, review status, and any failing checks. Write a summary to inbox/pr-status.md."
+```
+
+Every weekday at 9am, the cron engine wakes up, spawns a Copilot session with your mind's identity, and runs that prompt. The AI does the work — you read the results.
+
+Prompt jobs aren't just reminders. They're **scheduled agents** — they can read files, call APIs, write output, and use any tool available to a normal Copilot session.
+
 ## How It Works
 
 The extension registers tools with the Copilot CLI session. A background **engine** process ticks every 2 seconds, evaluates which jobs are due, and dispatches them. Jobs and run history are stored as JSON files in `data/`.
