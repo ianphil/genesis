@@ -13,6 +13,8 @@ const BACKOFF_STEPS_MS = [
   3_600_000,   // 1h
 ];
 
+const MAX_CONSECUTIVE_FAILURES = 10;
+
 /**
  * Apply a run result to a job, returning the updated job.
  * Mutates the job object in place.
@@ -67,6 +69,19 @@ function applyFailure(job, errorMessage) {
 
   // Transient errors use exponential backoff
   const failures = (job.backoff?.consecutiveFailures || 0) + 1;
+
+  // Circuit breaker: disable after too many consecutive failures
+  if (failures >= MAX_CONSECUTIVE_FAILURES) {
+    job.status = "disabled";
+    job.nextRunAtUtc = null;
+    job.backoff = {
+      consecutiveFailures: failures,
+      nextRetryAtUtc: null,
+      lastErrorMessage: `Disabled after ${failures} consecutive failures. Last: ${errorMessage}`,
+    };
+    return job;
+  }
+
   const stepIndex = Math.min(failures - 1, BACKOFF_STEPS_MS.length - 1);
   const delayMs = BACKOFF_STEPS_MS[stepIndex];
   const retryAt = new Date(Date.now() + delayMs);
