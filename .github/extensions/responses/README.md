@@ -8,7 +8,7 @@ interact with it using the standard OpenAI SDK.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/responses` | **OpenAI Responses API** — drop-in compatible |
+| `POST` | `/v1/responses` | **OpenAI Responses API** ...  drop-in compatible |
 | `GET` | `/history?limit=N` | Retrieve conversation history (last N messages, or all if omitted) |
 | `GET` | `/health` | Liveness check |
 
@@ -26,7 +26,7 @@ const client = new OpenAI({
 
 // Non-streaming
 const response = await client.responses.create({
-  model: 'copilot',           // ignored — agent picks its own model
+  model: 'copilot',           // ignored ...  agent picks its own model
   input: 'What PRs need review?',
 });
 console.log(response.output_text);

@@ -1,7 +1,7 @@
 # Tunnel Extension
 
 Expose any local port over the internet via [Microsoft Dev Tunnels](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/overview).
-Stopped by default — start it when you need remote access.
+Stopped by default ...  start it when you need remote access.
 
 ## Prerequisites
 
@@ -27,8 +27,8 @@ Stopped by default — start it when you need remote access.
 ### Parameters
 
 **`tunnel_start`**:
-- `port` (number, default: 15210) — local port to expose
-- `access` ("tenant" or "anonymous", default: "tenant") — Entra tenant-scoped or open
+- `port` (number, default: 15210) ...  local port to expose
+- `access` ("tenant" or "anonymous", default: "tenant") ...  Entra tenant-scoped or open
 
 ## How It Works
 
@@ -54,9 +54,9 @@ Tunnel ID is saved to `data/tunnel-config.json` so restarts reuse the same tunne
 
 ## Security
 
-- Default access is **tenant-scoped** — only members of your Entra tenant can connect
+- Default access is **tenant-scoped** ...  only members of your Entra tenant can connect
 - Use `access: "anonymous"` only for testing or public demos
-- The tunnel exposes whatever is running on the local port — ensure that service has its own auth if needed
+- The tunnel exposes whatever is running on the local port ...  ensure that service has its own auth if needed
 
 ### Programmatic Access (no browser)
 
@@ -77,6 +77,6 @@ Invoke-RestMethod -Uri "https://<tunnel-url>/v1/responses" -Method POST -Headers
 ```
 
 Key details:
-- Use `devtunnel token <id> --scope connect` — **not** `az account get-access-token`
-- Header is `X-Tunnel-Authorization: tunnel <jwt>` — **not** `Authorization: Bearer`
+- Use `devtunnel token <id> --scope connect` ...  **not** `az account get-access-token`
+- Header is `X-Tunnel-Authorization: tunnel <jwt>` ...  **not** `Authorization: Bearer`
 - Tokens are valid for 24 hours by default

@@ -1,18 +1,18 @@
-# code-exec — Copilot CLI Extension
+# code-exec ...  Copilot CLI Extension
 
-A lightweight extension for GitHub Copilot CLI that acts as a **universal connector** to any enterprise tool that speaks MCP (Model Context Protocol — the emerging standard for AI-to-tool communication). Three capabilities:
+A lightweight extension for GitHub Copilot CLI that acts as a **universal connector** to any enterprise tool that speaks MCP (Model Context Protocol ...  the emerging standard for AI-to-tool communication). Three capabilities:
 
-1. **Discover** — The AI asks "what tools are available?" and gets a concise menu, not a phone book. **150,000 tokens → 500 tokens. 99.7% reduction.**
+1. **Discover** ...  The AI asks "what tools are available?" and gets a concise menu, not a phone book. **150,000 tokens → 500 tokens. 99.7% reduction.**
 
-2. **Call** — The AI calls individual tools on demand. Simple lookups like "get me work item #1234."
+2. **Call** ...  The AI calls individual tools on demand. Simple lookups like "get me work item #1234."
 
-3. **Execute** — The AI *writes and runs a script* that orchestrates multiple tools across multiple systems in a single operation. Search Azure DevOps → get work item details → post a formatted summary to Microsoft Teams. **Three API calls across two enterprise systems, one command from the user.** The raw data (hundreds of KB) never floods the AI's context — only the clean summary comes back.
+3. **Execute** ...  The AI *writes and runs a script* that orchestrates multiple tools across multiple systems in a single operation. Search Azure DevOps → get work item details → post a formatted summary to Microsoft Teams. **Three API calls across two enterprise systems, one command from the user.** The raw data (hundreds of KB) never floods the AI's context ...  only the clean summary comes back.
 
-**The system learns as you use it.** Every tool call captures the response shape. Over time, the AI builds its own documentation of your enterprise APIs — even ones that ship without output schemas. The more your team uses it, the smarter it gets.
+**The system learns as you use it.** Every tool call captures the response shape. Over time, the AI builds its own documentation of your enterprise APIs ...  even ones that ship without output schemas. The more your team uses it, the smarter it gets.
 
 - **Any MCP server works.** ADO today, Teams today, ServiceNow tomorrow. Add a server to a config file, the AI discovers it automatically.
 - **It's portable.** Drop this folder into any repo's `.github/extensions/` directory and it just works.
-- **It composes across silos.** The AI becomes the integration layer — not through brittle point-to-point connectors, but through reasoning.
+- **It composes across silos.** The AI becomes the integration layer ...  not through brittle point-to-point connectors, but through reasoning.
 - **Context efficiency = cost efficiency.** Less token usage means faster responses, lower API costs, and the ability to tackle more complex multi-step tasks.
 
 ![code-exec extension demo](https://github.com/user-attachments/assets/131a7c13-0128-4974-b856-b8d7e6549f10)
@@ -111,8 +111,8 @@ Each server in `mcpServers` supports:
 
 ### When to use `call_tool` vs `execute_script`
 
-- **`call_tool`** — simple single lookups ("get work item 12345", "post a message")
-- **`execute_script`** — multi-step queries where intermediate data is large ("summarize all bugs this sprint", "compare two sprints"). Intermediate data stays in the script; only the return value enters context.
+- **`call_tool`** ...  simple single lookups ("get work item 12345", "post a message")
+- **`execute_script`** ...  multi-step queries where intermediate data is large ("summarize all bugs this sprint", "compare two sprints"). Intermediate data stays in the script; only the return value enters context.
 
 ## Progressive Disclosure
 

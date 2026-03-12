@@ -16,7 +16,7 @@ cd .github/extensions/cron && npm install --no-fund --no-audit
 
 > "Schedule a job that checks my open PRs every morning at 9am and writes a summary to my inbox"
 
-That's it. The agent creates a **prompt job** — a scheduled AI session that runs autonomously:
+That's it. The agent creates a **prompt job** ...  a scheduled AI session that runs autonomously:
 
 ```
 cron_create:
@@ -28,9 +28,9 @@ cron_create:
   prompt: "Check my open GitHub PRs. For each one, note the age, review status, and any failing checks. Write a summary to inbox/pr-status.md."
 ```
 
-Every weekday at 9am, the cron engine wakes up, spawns a Copilot session with your mind's identity, and runs that prompt. The AI does the work — you read the results.
+Every weekday at 9am, the cron engine wakes up, spawns a Copilot session with your mind's identity, and runs that prompt. The AI does the work ...  you read the results.
 
-Prompt jobs aren't just reminders. They're **scheduled agents** — they can read files, call APIs, write output, and use any tool available to a normal Copilot session.
+Prompt jobs aren't just reminders. They're **scheduled agents** ...  they can read files, call APIs, write output, and use any tool available to a normal Copilot session.
 
 ## How It Works
 
@@ -67,7 +67,7 @@ The engine auto-starts when a Copilot session begins and runs independently as a
 
 ## Schedule Types
 
-**Cron** — Standard 5 or 6 field cron expressions with optional timezone.
+**Cron** ...  Standard 5 or 6 field cron expressions with optional timezone.
 ```
 Schedule every weekday at 9am Eastern:
   scheduleType: cron
@@ -75,14 +75,14 @@ Schedule every weekday at 9am Eastern:
   timezone: "America/New_York"
 ```
 
-**Interval** — Fixed millisecond interval between runs.
+**Interval** ...  Fixed millisecond interval between runs.
 ```
 Run every 30 seconds:
   scheduleType: interval
   intervalMs: 30000
 ```
 
-**One-shot** — Fire once at a specific UTC time, then disable.
+**One-shot** ...  Fire once at a specific UTC time, then disable.
 ```
 Fire in 10 minutes:
   scheduleType: oneShot
@@ -91,7 +91,7 @@ Fire in 10 minutes:
 
 ## Payload Types
 
-**Command** — Run a shell command. Uses `shell: true` so built-ins and quoted arguments work.
+**Command** ...  Run a shell command. Uses `shell: true` so built-ins and quoted arguments work.
 ```
 payloadType: command
 command: echo
@@ -100,7 +100,7 @@ workingDirectory: C:\src\myproject
 timeoutSeconds: 300
 ```
 
-**Prompt** — Send a prompt to the Copilot AI. Spawns a separate CopilotClient session.
+**Prompt** ...  Send a prompt to the Copilot AI. Spawns a separate CopilotClient session.
 ```
 payloadType: prompt
 prompt: "Summarize my open PRs"
@@ -125,7 +125,7 @@ Prompt jobs inherit the mind's identity (from `SOUL.md`) as a system message whe
 
 ```
 .github/extensions/cron/
-├── extension.mjs          # Entry point — registers tools and hooks
+├── extension.mjs          # Entry point ...  registers tools and hooks
 ├── engine/
 │   └── main.mjs           # Detached engine process (tick loop)
 ├── tools/

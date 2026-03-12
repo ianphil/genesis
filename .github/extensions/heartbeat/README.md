@@ -1,6 +1,6 @@
 # Heartbeat Extension
 
-A Copilot CLI extension that provides memory maintenance — consolidating session learnings into long-term memory and decaying stale entries over time.
+A Copilot CLI extension that provides memory maintenance ...  consolidating session learnings into long-term memory and decaying stale entries over time.
 
 ## How It Works
 
@@ -10,20 +10,20 @@ The agent accumulates observations in `.working-memory/log.md` during normal ses
 
 ## Memory Model
 
-**Log** (`.working-memory/log.md`) — short-term, append-only session notes:
+**Log** (`.working-memory/log.md`) ...  short-term, append-only session notes:
 ```markdown
 ## 2026-03-11
 - Ian prefers structured tools over freehand LLM edits
 - Deploy pipeline uses staging → canary → prod
 ```
 
-**Memory** (`.working-memory/memory.md`) — curated long-term memory with timestamps:
+**Memory** (`.working-memory/memory.md`) ...  curated long-term memory with timestamps:
 ```markdown
 ## Corrected
-- Prefer tabs over spaces in JS — *corrected: 2026-03-11*
+- Prefer tabs over spaces in JS ...  *corrected: 2026-03-11*
 
 ## Learned
-- Deploy pipeline: staging → canary → prod — *learned: 2026-03-04, reinforced: 2026-03-11*
+- Deploy pipeline: staging → canary → prod ...  *learned: 2026-03-04, reinforced: 2026-03-11*
 ```
 
 **Rules:**
@@ -61,13 +61,13 @@ You can also use the tools interactively at any time:
 > Decay stale memories (dry run first)
 ```
 
-Reinforcement happens naturally — when you or the agent reference a memory during a session, call `heartbeat_reinforce` to bump its date.
+Reinforcement happens naturally ...  when you or the agent reference a memory during a session, call `heartbeat_reinforce` to bump its date.
 
 ## File Structure
 
 ```
 .github/extensions/heartbeat/
-├── extension.mjs              # Entry point — tools + onSessionStart hook
+├── extension.mjs              # Entry point ...  tools + onSessionStart hook
 ├── lib/
 │   ├── consolidate.mjs        # Read log entries for evaluation
 │   ├── decay.mjs              # Scan and remove stale memories
@@ -82,5 +82,5 @@ Reinforcement happens naturally — when you or the agent reference a memory dur
 
 ## Dependencies
 
-- **[Cron extension](../cron/)** — provides the scheduling engine
-- No npm dependencies — pure Node.js
+- **[Cron extension](../cron/)** ...  provides the scheduling engine
+- No npm dependencies ...  pure Node.js

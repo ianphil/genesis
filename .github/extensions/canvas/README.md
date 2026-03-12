@@ -1,6 +1,6 @@
 # Canvas Extension
 
-A Copilot CLI extension that lets agents display rich HTML content in the browser. Write a dashboard, render a report, or build an interactive form — the agent generates HTML and it appears in Edge with live reload.
+A Copilot CLI extension that lets agents display rich HTML content in the browser. Write a dashboard, render a report, or build an interactive form ...  the agent generates HTML and it appears in Edge with live reload.
 
 ## Setup
 
@@ -32,7 +32,7 @@ canvas_update:
   html: "<h1>Open PRs (refreshed)</h1>..."
 ```
 
-The browser auto-reloads — no manual refresh needed.
+The browser auto-reloads ...  no manual refresh needed.
 
 ## How It Works
 
@@ -82,6 +82,6 @@ This POSTs to the extension's local server, which routes it into the agent sessi
 
 - HTML fragments are auto-wrapped in a full page with viewport meta tag
 - All served HTML gets the bridge script injected before `</body>`
-- Server binds to `127.0.0.1` only — not exposed to the network
-- No dependencies — uses Node.js built-in `http` module
+- Server binds to `127.0.0.1` only ...  not exposed to the network
+- No dependencies ...  uses Node.js built-in `http` module
 - Cache headers set to `no-store` so the browser always gets fresh content
