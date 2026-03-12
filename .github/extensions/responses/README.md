@@ -9,7 +9,7 @@ interact with it using the standard OpenAI SDK.
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/v1/responses` | **OpenAI Responses API** — drop-in compatible |
-| `GET` | `/history` | Retrieve conversation history |
+| `GET` | `/history?limit=N` | Retrieve conversation history (last N messages, or all if omitted) |
 | `GET` | `/health` | Liveness check |
 
 ## OpenAI SDK Compatibility

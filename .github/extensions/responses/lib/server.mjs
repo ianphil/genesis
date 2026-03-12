@@ -58,9 +58,14 @@ export function createChatApiServer(deps) {
     });
   }
 
-  async function handleHistory(_req, res) {
+  async function handleHistory(req, res) {
     try {
-      const messages = await deps.getMessages();
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const limit = parseInt(url.searchParams.get("limit"), 10) || 0;
+      let messages = await deps.getMessages();
+      if (limit > 0) {
+        messages = messages.slice(-limit);
+      }
       jsonResponse(res, 200, { messages });
     } catch (err) {
       jsonResponse(res, 500, { error: err.message });
@@ -196,7 +201,7 @@ export function createChatApiServer(deps) {
       error: "Not found",
       endpoints: {
         "POST /v1/responses": "OpenAI Responses API (compatible)",
-        "GET /history": "Conversation history",
+        "GET /history?limit=N": "Conversation history (last N messages, or all)",
         "GET /health": "Health check",
       },
     });
