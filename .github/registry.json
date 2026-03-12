@@ -1,5 +1,5 @@
 {
-  "version": "0.8.4",
+  "version": "0.8.5",
   "source": "ianphil/genesis",
   "extensions": {
     "cron": {
@@ -21,6 +21,11 @@
       "version": "0.1.2",
       "path": ".github/extensions/code-exec",
       "description": "Universal MCP connector — discover, call, and orchestrate enterprise tools with progressive disclosure"
+    },
+    "responses": {
+      "version": "0.1.0",
+      "path": ".github/extensions/responses",
+      "description": "OpenAI Responses API–compatible HTTP server — external chat interfaces talk to the agent via standard SDK"
     }
   },
   "skills": {
