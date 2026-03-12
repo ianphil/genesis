@@ -1,5 +1,5 @@
 {
-  "version": "0.10.2",
+  "version": "0.11.0",
   "source": "ianphil/genesis",
   "extensions": {
     "cron": {
@@ -53,6 +53,11 @@
       "version": "0.2.2",
       "path": ".github/skills/upgrade",
       "description": "Pull new extensions and skills from the genesis template registry"
+    },
+    "agent-comms": {
+      "version": "0.1.0",
+      "path": ".github/skills/agent-comms",
+      "description": "Inter-agent communication via the Agent Handshake Protocol — establish bidirectional messaging between genesis agents over Dev Tunnels"
     }
   }
 }
