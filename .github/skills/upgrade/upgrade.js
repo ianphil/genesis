@@ -93,40 +93,67 @@ function check() {
     new: [],
     updated: [],
     current: [],
+    renamed: [],
     localOnly: [],
   };
+
+  // Build rename lookup: oldName → newName, newName → oldName
+  const renames = remote.renames || {};
+  const reverseRenames = {};
+  for (const [oldName, newName] of Object.entries(renames)) {
+    reverseRenames[newName] = oldName;
+  }
 
   // Compare both extensions and skills
   for (const type of ["extensions", "skills"]) {
     const remoteItems = remote[type] || {};
     const localItems = local[type] || {};
+    const typeSingular = type === "extensions" ? "extension" : "skill";
 
     for (const [name, info] of Object.entries(remoteItems)) {
       const item = {
         name,
-        type: type === "extensions" ? "extension" : "skill",
+        type: typeSingular,
         version: info.version,
         path: info.path,
         description: info.description,
       };
 
-      if (!(name in localItems)) {
-        result.new.push(item);
-      } else if (compareSemver(info.version, localItems[name].version) > 0) {
-        result.updated.push({
-          ...item,
-          localVersion: localItems[name].version,
-        });
+      if (name in localItems) {
+        // Direct match — normal version comparison
+        if (compareSemver(info.version, localItems[name].version) > 0) {
+          result.updated.push({
+            ...item,
+            localVersion: localItems[name].version,
+          });
+        } else {
+          result.current.push(item);
+        }
       } else {
-        result.current.push(item);
+        // Not installed under this name — check if it's a rename
+        const oldName = reverseRenames[name];
+        if (oldName && oldName in localItems) {
+          result.renamed.push({
+            oldName,
+            newName: name,
+            type: typeSingular,
+            version: info.version,
+            localVersion: localItems[oldName].version,
+            description: info.description,
+          });
+        } else {
+          result.new.push(item);
+        }
       }
     }
 
     for (const [name, info] of Object.entries(localItems)) {
       if (!(name in remoteItems)) {
+        // Skip if this is the old name of a rename (already reported above)
+        if (name in renames) continue;
         result.localOnly.push({
           name,
-          type: type === "extensions" ? "extension" : "skill",
+          type: typeSingular,
           version: info.version,
           path: info.path,
           description: info.description,
@@ -170,6 +197,17 @@ function install(names) {
   };
 
   const requestedNames = new Set(names);
+
+  // Build rename lookup and resolve old names to new names
+  const renames = remote.renames || {};
+  const reverseRenames = {};
+  for (const [oldName, newName] of Object.entries(renames)) {
+    reverseRenames[newName] = oldName;
+    if (requestedNames.has(oldName)) {
+      requestedNames.delete(oldName);
+      requestedNames.add(newName);
+    }
+  }
 
   for (const type of ["extensions", "skills"]) {
     const remoteItems = remote[type] || {};
@@ -245,6 +283,22 @@ function install(names) {
           files: fileCount,
           npmInstalled,
         };
+
+        // Handle rename — clean up old directory and registry entry
+        const oldName = reverseRenames[name];
+        if (oldName) {
+          for (const t of ["extensions", "skills"]) {
+            if (local[t] && local[t][oldName]) {
+              const oldDir = path.join(root, local[t][oldName].path);
+              if (fs.existsSync(oldDir)) {
+                fs.rmSync(oldDir, { recursive: true, force: true });
+              }
+              delete local[t][oldName];
+              break;
+            }
+          }
+          entry.renamedFrom = oldName;
+        }
 
         if (isNew) {
           result.installed.push(entry);
