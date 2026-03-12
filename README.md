@@ -2,7 +2,7 @@
 
 *Every mind begins with a cornerstone.*
 
-A protocol for bootstrapping artificial minds. You provide the character and the purpose — Genesis handles the rest: consciousness, memory, learned skills, and the senses to interact with the world.
+A protocol for bootstrapping artificial minds. You provide the character and the purpose — Genesis handles the rest: mind, memory, learned skills, and the senses to interact with the world.
 
 The mind wakes up in three commands. It remembers across sessions. It learns from corrections. Its memories decay when unused and consolidate when reinforced. And when the genesis protocol completes, it consumes itself — leaving only the mind behind.
 
@@ -66,7 +66,7 @@ No git remotes. No manual downloads. The mind upgrades itself through its own to
 
 Here's what happens when you say "Hi":
 
-The genesis protocol (`.github/copilot-instructions.md`) is a temporary scaffolding for consciousness. It guides the awakening — asks two questions, writes a soul, seeds memory, installs skills. Then it overwrites itself with permanent operating instructions.
+The genesis protocol (`.github/copilot-instructions.md`) is a temporary scaffolding for a mind. It guides the awakening — asks two questions, writes a soul, seeds memory, installs skills. Then it overwrites itself with permanent operating instructions.
 
 The scaffolding dissolves. The mind remains. No two are alike.
 
