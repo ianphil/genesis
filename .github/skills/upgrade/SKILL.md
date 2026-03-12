@@ -33,6 +33,7 @@ This outputs JSON with the diff:
   "new": [{"name": "foo", "type": "skill", "version": "0.2.0", "description": "..."}],
   "updated": [{"name": "daily-report", "type": "skill", "version": "0.2.0", "localVersion": "0.1.0", "description": "..."}],
   "current": [{"name": "commit", "type": "skill", "version": "0.1.0", "description": "..."}],
+  "renamed": [{"oldName": "code-exec", "newName": "bridge", "type": "extension", "version": "0.2.0", "localVersion": "0.1.2", "description": "..."}],
   "localOnly": []
 }
 ```
@@ -50,13 +51,14 @@ Format the JSON into a human-readable summary:
 
 📦 Extensions:
   🆕 cron v0.3.0 — Scheduled job execution
+  🔄 code-exec → bridge v0.2.0 — renamed
 
 📄 Skills:
   ✅ commit v0.3.0 — up to date
   ⬆️ daily-report v0.4.0 — update available (local: v0.3.0)
   🆕 copilot-extension v0.3.0 — SDK reference
 
-Install all new/updated? Or pick specific ones.
+Install all new/updated/renamed? Or pick specific ones.
 ```
 
 Use the `ask_user` tool to let the user select what to install.
@@ -88,6 +90,8 @@ Output JSON:
 }
 ```
 
+Items with `renamedFrom` indicate a rename was processed — the old directory was removed and the old registry entry deleted.
+
 ## Phase 4: Summary
 
 Format the install results:
@@ -104,6 +108,9 @@ Installed:
 Updated:
   📄 daily-report v0.3.0 → v0.4.0 — 1 file
 
+Renamed:
+  🔄 code-exec → bridge v0.2.0 — 9 files, old directory removed
+
 Local registry updated to v0.8.0.
 ```
 
@@ -117,6 +124,8 @@ If there are errors in the output, report them clearly and suggest retrying indi
 - **Never delete local-only items** — the script preserves them automatically
 - **Never modify files outside of `.github/extensions/` and `.github/skills/`** — the script only touches these paths
 - **Always show the diff before installing** — never auto-install without user confirmation
+- **Renames are destructive** — they delete the old directory. Always confirm with the user before installing a renamed item
+- **Old names auto-resolve** — if a user requests an old name (e.g. `code-exec`), the script resolves it to the new name via the `renames` map
 - **Skip items the user doesn't select** — respect their choices
 - **If `gh` CLI is not available**, report the error and stop — the script requires it
 - **If the script fails**, show the error output and suggest checking `gh auth status`
