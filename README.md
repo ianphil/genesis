@@ -41,6 +41,7 @@ Genesis creates your `SOUL.md` (personality) and agent file (role), seeds workin
 | [heartbeat](.github/extensions/heartbeat/) | Memory maintenance — consolidate session log to long-term memory, decay stale entries |
 | [code-exec](.github/extensions/code-exec/) | Universal MCP connector — discover, call, and orchestrate enterprise tools with progressive disclosure (150K→500 tokens) |
 | [responses](.github/extensions/responses/) | OpenAI Responses API–compatible HTTP server — external chat interfaces talk to the agent via standard SDK |
+| [tunnel](.github/extensions/tunnel/) | Expose local ports over the internet via Microsoft Dev Tunnels with tenant or anonymous access |
 
 ## Upgrading Existing Minds
 
