@@ -57,3 +57,26 @@ Tunnel ID is saved to `data/tunnel-config.json` so restarts reuse the same tunne
 - Default access is **tenant-scoped** — only members of your Entra tenant can connect
 - Use `access: "anonymous"` only for testing or public demos
 - The tunnel exposes whatever is running on the local port — ensure that service has its own auth if needed
+
+### Programmatic Access (no browser)
+
+Browser clients get Entra SSO automatically. For scripts and API calls, generate a **tunnel connect token**:
+
+```powershell
+# Generate a connect token (valid 24h)
+$TOKEN = (devtunnel token <tunnel-id> --scope connect | Select-String "^Token:").ToString().Replace("Token: ", "")
+
+# Call the API through the tunnel
+Invoke-RestMethod -Uri "https://<tunnel-url>/health" -Headers @{ "X-Tunnel-Authorization" = "tunnel $TOKEN" }
+
+# Send a chat message through the tunnel
+Invoke-RestMethod -Uri "https://<tunnel-url>/v1/responses" -Method POST -Headers @{
+    "X-Tunnel-Authorization" = "tunnel $TOKEN"
+    "Content-Type" = "application/json"
+} -Body '{"model":"copilot","input":"Hello from the tunnel!"}'
+```
+
+Key details:
+- Use `devtunnel token <id> --scope connect` — **not** `az account get-access-token`
+- Header is `X-Tunnel-Authorization: tunnel <jwt>` — **not** `Authorization: Bearer`
+- Tokens are valid for 24 hours by default
