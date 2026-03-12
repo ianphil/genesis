@@ -1,0 +1,5 @@
+{
+  "name": "copilot-chat-api-extension",
+  "private": true,
+  "type": "module"
+}
