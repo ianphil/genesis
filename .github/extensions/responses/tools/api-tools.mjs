@@ -1,12 +1,12 @@
 /**
- * Tools exposed to the agent for managing the chat API server.
+ * Tools exposed to the agent for managing the Responses API server.
  */
-export function createApiTools(server) {
+export function createApiTools(server, defaultPort = 15210) {
   return [
     {
-      name: "chat_api_status",
+      name: "responses_status",
       description:
-        "Get the status of the external chat API server, including its port and whether it is running.",
+        "Get the status of the Responses API server, including its port and whether it is running.",
       parameters: {
         type: "object",
         properties: {},
@@ -15,12 +15,13 @@ export function createApiTools(server) {
         const running = server.isRunning();
         const port = server.getPort();
         if (!running) {
-          return "Chat API server is not running.";
+          return "Responses API server is not running.";
         }
         return [
-          `Chat API server is running on http://127.0.0.1:${port}`,
+          `Responses API server is running on http://127.0.0.1:${port}`,
           "",
           "Endpoints:",
+          `  POST http://127.0.0.1:${port}/v1/responses  — OpenAI Responses API (compatible)`,
           `  POST http://127.0.0.1:${port}/chat          — send a message, get a response`,
           `  GET  http://127.0.0.1:${port}/chat/stream   — SSE stream (query: ?prompt=...)`,
           `  GET  http://127.0.0.1:${port}/history        — conversation history`,
@@ -29,16 +30,16 @@ export function createApiTools(server) {
       },
     },
     {
-      name: "chat_api_restart",
+      name: "responses_restart",
       description:
-        "Restart the external chat API server. Use if the server becomes unresponsive.",
+        "Restart the Responses API server. Use if the server becomes unresponsive.",
       parameters: {
         type: "object",
         properties: {
           port: {
             type: "number",
             description:
-              "Port to bind to. Omit or set to 0 for a random available port.",
+              `Port to bind to. Defaults to ${defaultPort}.`,
           },
         },
       },
@@ -46,8 +47,8 @@ export function createApiTools(server) {
         if (server.isRunning()) {
           await server.stop();
         }
-        const actualPort = await server.start(args.port || 0);
-        return `Chat API server restarted on http://127.0.0.1:${actualPort}`;
+        const actualPort = await server.start(args.port || defaultPort);
+        return `Responses API server restarted on http://127.0.0.1:${actualPort}`;
       },
     },
   ];

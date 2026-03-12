@@ -11,6 +11,8 @@ const deps = {
   onEvent: null,
 };
 
+const DEFAULT_PORT = 15210;
+
 const server = createChatApiServer({
   sendAndWait: (...a) => deps.sendAndWait(...a),
   send: (...a) => deps.send(...a),
@@ -23,17 +25,17 @@ const session = await joinSession({
 
   hooks: {
     onSessionStart: async () => {
-      const port = await server.start(0);
-      console.error(`chat-api: listening on http://127.0.0.1:${port}`);
+      const port = await server.start(DEFAULT_PORT);
+      console.error(`responses: listening on http://127.0.0.1:${port}`);
     },
 
     onSessionEnd: async () => {
       await server.stop();
-      console.error("chat-api: server stopped");
+      console.error("responses: server stopped");
     },
   },
 
-  tools: createApiTools(server),
+  tools: createApiTools(server, DEFAULT_PORT),
 });
 
 // Wire up session methods now that joinSession has resolved

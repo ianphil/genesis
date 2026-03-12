@@ -1,15 +1,14 @@
-# Chat API Extension
+# Responses Extension
 
-Exposes the Copilot CLI agent as an HTTP API, allowing external chat interfaces
-(web UIs, mobile apps, scripts, other agents) to interact with it.
+Exposes the Copilot CLI agent as an OpenAI Responses API–compatible HTTP server,
+allowing external clients (web UIs, mobile apps, scripts, other agents) to
+interact with it using the standard OpenAI SDK.
 
 ## Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/v1/responses` | **OpenAI Responses API** — drop-in compatible |
-| `POST` | `/chat` | Simple: send a message, receive the agent's response |
-| `GET` | `/chat/stream?prompt=...` | SSE stream with token-by-token deltas |
 | `GET` | `/history` | Retrieve conversation history |
 | `GET` | `/health` | Liveness check |
 
@@ -62,28 +61,23 @@ for await (const event of stream) {
 ## Usage
 
 The extension starts automatically when the Copilot CLI session begins. The
-port is logged to stderr and available via the `chat_api_status` tool.
+port is logged to stderr and available via the `responses_status` tool.
 
-### Send a message
+### Send a message (curl)
 
 ```bash
-curl -X POST http://127.0.0.1:<port>/chat \
+curl -s -X POST http://127.0.0.1:<port>/v1/responses \
   -H "Content-Type: application/json" \
-  -d '{"message": "What files are in this repo?"}'
+  -d '{"model":"copilot","input":"What files are in this repo?"}'
 ```
 
-### Stream a response (SSE)
+### Stream a response
 
 ```bash
-curl -N "http://127.0.0.1:<port>/chat/stream?prompt=Explain%20this%20codebase"
+curl -N -X POST http://127.0.0.1:<port>/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{"model":"copilot","input":"Hello!","stream":true}'
 ```
-
-SSE event types:
-- `start` — stream opened, includes request ID
-- `delta` — incremental token from the agent
-- `complete` — final full response
-- `error` — something went wrong
-- `[DONE]` — stream finished
 
 ### Health check
 
@@ -95,21 +89,21 @@ curl http://127.0.0.1:<port>/health
 
 | Tool | Description |
 |------|-------------|
-| `chat_api_status` | Show server status, port, and endpoints |
-| `chat_api_restart` | Restart the server (optionally on a specific port) |
+| `responses_status` | Show server status, port, and endpoints |
+| `responses_restart` | Restart the server (optionally on a specific port) |
 
 ## Architecture
 
 ```
-External Client ──POST /chat──▶ HTTP Server (Node.js)
-                                     │
-                               session.sendAndWait()
-                                     │
-                               Copilot Agent ──▶ tools, files, etc.
-                                     │
-                               response.data.content
-                                     │
-External Client ◀──JSON──────── HTTP Server
+External Client ──POST /v1/responses──▶ HTTP Server (Node.js)
+                                             │
+                                       session.sendAndWait()
+                                             │
+                                       Copilot Agent ──▶ tools, files, etc.
+                                             │
+                                       response.data.content
+                                             │
+External Client ◀──OpenAI JSON──────── HTTP Server
 ```
 
 ## Security
