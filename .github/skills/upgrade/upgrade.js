@@ -77,10 +77,11 @@ function check() {
   }
 
   const { owner, repo } = parseSource(local.source);
+  const branch = local.branch || "main";
 
   // Fetch remote registry
   const remoteRaw = gh(
-    `/repos/${owner}/${repo}/contents/.github/registry.json`
+    `/repos/${owner}/${repo}/contents/.github/registry.json?ref=${branch}`
   );
   const remote = JSON.parse(
     Buffer.from(remoteRaw.content, "base64").toString("utf8")
@@ -171,17 +172,18 @@ function install(names) {
   const root = findRepoRoot();
   const local = readLocalRegistry(root);
   const { owner, repo } = parseSource(local.source);
+  const branch = local.branch || "main";
 
   // Fetch remote registry
   const remoteRaw = gh(
-    `/repos/${owner}/${repo}/contents/.github/registry.json`
+    `/repos/${owner}/${repo}/contents/.github/registry.json?ref=${branch}`
   );
   const remote = JSON.parse(
     Buffer.from(remoteRaw.content, "base64").toString("utf8")
   );
 
   // Fetch full tree once
-  const tree = gh(`/repos/${owner}/${repo}/git/trees/main?recursive=1`);
+  const tree = gh(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
   const treeMap = new Map();
   for (const entry of tree.tree) {
     if (entry.type === "blob") {

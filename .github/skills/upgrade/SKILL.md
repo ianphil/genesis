@@ -13,6 +13,7 @@ Check the genesis template for new or updated extensions and skills, then instal
 
 - `gh` CLI must be authenticated (`gh auth status`)
 - `.github/registry.json` must exist with a `source` field (e.g. `"source": "ianphil/genesis"`)
+- Optional `"branch"` field in `registry.json` to track a non-main branch (defaults to `"main"`)
 - If `registry.json` is missing or has no `source`, ask the user for the source repo (default: `ianphil/genesis`) and create it
 
 ## Phase 1: Check for Updates
