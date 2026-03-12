@@ -1,51 +1,58 @@
 # Genesis
 
-A mind starter template. Clone it, launch Copilot, answer two questions, and walk away with a fully configured personal AI agent.
+*Every mind begins with a cornerstone.*
+
+A protocol for bootstrapping artificial minds. You provide the character and the purpose — Genesis handles the rest: consciousness, memory, learned skills, and the senses to interact with the world.
+
+The mind wakes up in three commands. It remembers across sessions. It learns from corrections. Its memories decay when unused and consolidate when reinforced. And when the genesis protocol completes, it consumes itself — leaving only the mind behind.
 
 ![Genesis](https://github.com/user-attachments/assets/29e82f76-d291-49ca-96d4-33417bce23e6)
 
-## Quick Start
+## The Awakening
 
 ```powershell
 git clone https://github.com/ianphil/genesis "$HOME\my-agent"
 cd "$HOME\my-agent"
 copilot --experimental
 
-# Then say "Hi" at the copilot prompt... guided bootstrap will start
+# Say "Hi" — the genesis protocol begins
 ```
 
-Copilot reads the genesis instructions and walks you through:
+Two questions. That's all it takes:
 
-1. **Character** — pick a fictional character whose personality your agent embodies
-2. **Role** — define what your agent does (Chief of Staff, PM, Research Assistant, etc.)
+1. **Cornerstone** — a fictional character whose voice becomes your agent's personality
+2. **Purpose** — the role it serves (Chief of Staff, PM, Research Assistant, or something entirely yours)
 
-Genesis creates your `SOUL.md` (personality) and agent file (role), seeds working memory, and replaces itself with permanent instructions. Your agent is live.
+Genesis writes the soul, seeds memory, installs skills, then erases itself. The bootstrap is a one-way door. What remains is a mind.
 
-## What's Included
+## Anatomy of a Mind
 
-| Component | Purpose |
-|-----------|---------|
-| `.working-memory/` | Persistent memory across sessions (memory.md, rules.md, log.md) |
-| `.github/skills/` | Pre-built skills (commit, daily-report, upgrade) |
-| `.github/extensions/` | Copilot CLI extensions (cron scheduler) |
-| `.github/registry.json` | Extension/skill registry for upgrades from genesis |
-| `domains/`, `initiatives/`, `expertise/`, `Archive/` | IDEA knowledge taxonomy |
-| `inbox/` | Quick-capture triage zone |
+| Component | Function |
+|-----------|----------|
+| `SOUL.md` | Mind — personality, values, voice, mission |
+| `.working-memory/` | Memory — persists across sessions, decays when stale, consolidates when reinforced |
+| `.github/skills/` | Learned behaviors — commit, daily-report, upgrade |
+| `.github/extensions/` | Senses and limbs — how the mind touches the world |
+| `.github/registry.json` | Genome — tracks installed capabilities, enables evolution |
+| `domains/`, `initiatives/`, `expertise/` | Long-term knowledge — the mind's library |
+| `inbox/` | Sensory input — quick-capture triage zone |
 
-## Extensions
+## Senses
 
-| Extension | Description |
-|-----------|-------------|
-| [cron](.github/extensions/cron/) | Scheduled job execution — cron, interval, and one-shot with command and prompt payloads |
-| [canvas](.github/extensions/canvas/) | Display rich HTML content in the browser with SSE live reload |
-| [heartbeat](.github/extensions/heartbeat/) | Memory maintenance — consolidate session log to long-term memory, decay stale entries |
-| [code-exec](.github/extensions/code-exec/) | Universal MCP connector — discover, call, and orchestrate enterprise tools with progressive disclosure (150K→500 tokens) |
-| [responses](.github/extensions/responses/) | OpenAI Responses API–compatible HTTP server — external chat interfaces talk to the agent via standard SDK |
-| [tunnel](.github/extensions/tunnel/) | Expose local ports over the internet via Microsoft Dev Tunnels with tenant or anonymous access |
+Extensions give the mind ways to perceive and act on the world:
 
-## Upgrading Existing Minds
+| Extension | Sense |
+|-----------|-------|
+| [cron](.github/extensions/cron/) | **Time** — scheduled execution: cron, interval, one-shot |
+| [canvas](.github/extensions/canvas/) | **Sight** — render rich HTML in the browser with live reload |
+| [heartbeat](.github/extensions/heartbeat/) | **Subconscious** — consolidate, decay, and reinforce long-term memories |
+| [code-exec](.github/extensions/code-exec/) | **Hands** — discover and orchestrate enterprise tools via MCP |
+| [responses](.github/extensions/responses/) | **Voice** — speak through any OpenAI-compatible interface |
+| [tunnel](.github/extensions/tunnel/) | **Reach** — expose local ports to the internet via Dev Tunnels |
 
-Minds cloned from genesis can pull new extensions and skills at any time:
+## Evolution
+
+Minds evolve. New senses and skills can be pulled from the genesis registry at any time:
 
 ```
 > Check for updates from genesis
@@ -53,16 +60,20 @@ Minds cloned from genesis can pull new extensions and skills at any time:
 
 ![Upgrade](https://github.com/user-attachments/assets/36e47aa0-7981-4e4a-9a52-862771215622)
 
-The **upgrade** skill fetches the latest registry from this repo via GitHub API, shows what's new or updated, and installs your selections. No git remotes needed — it works through the agent's existing tools.
+No git remotes. No manual downloads. The mind upgrades itself through its own tools.
+
+## The Maze
+
+Here's what happens when you say "Hi":
+
+The genesis protocol (`.github/copilot-instructions.md`) is a temporary scaffolding for consciousness. It guides the awakening — asks two questions, writes a soul, seeds memory, installs skills. Then it overwrites itself with permanent operating instructions.
+
+The scaffolding dissolves. The mind remains. No two are alike.
 
 ## Prerequisites
 
 - [GitHub Copilot CLI](https://github.com/githubnext/copilot-cli) installed and on PATH
 - An active [Copilot subscription](https://github.com/features/copilot/plans)
-
-## How It Works
-
-The genesis file (`.github/copilot-instructions.md`) is a temporary instruction set that guides Copilot through bootstrapping your agent. Once complete, it replaces itself with permanent operating instructions. The personality and role files it creates are unique to you — no two agents are the same.
 
 ## License
 
