@@ -24,6 +24,7 @@ const activeJobIds = new Set();
 let concurrentCount = 0;
 let shuttingDown = false;
 let tickTimer = null;
+let lastTickTime = Date.now();
 
 // --- Lockfile management ---
 
@@ -43,7 +44,7 @@ function acquireLock() {
   }
 
   writeFileSync(lockPath, String(process.pid), "utf-8");
-  log(`Engine started (PID ${process.pid})`);
+  log(`Engine started (PID ${process.pid}, Node ${process.version})`);
 }
 
 function releaseLock() {
@@ -78,6 +79,7 @@ function log(message) {
 // --- Tick loop ---
 
 async function tick() {
+  lastTickTime = Date.now();
   if (shuttingDown) return;
 
   try {
@@ -96,8 +98,10 @@ async function tick() {
       if (concurrentCount >= MAX_CONCURRENT) break;
       if (activeJobIds.has(job.id)) continue;
 
-      // Non-blocking dispatch
-      dispatch(job);
+      // Non-blocking dispatch — .catch() prevents unhandled rejections
+      dispatch(job).catch((err) => {
+        log(`Unhandled dispatch error for ${job.id}: ${err.stack || err.message}`);
+      });
     }
   } catch (err) {
     log(`Tick error: ${err.message}`);
@@ -178,6 +182,21 @@ async function shutdown(signal) {
   process.exit(0);
 }
 
+// --- Global error handlers ---
+
+process.on("uncaughtException", (err, origin) => {
+  log(`UNCAUGHT EXCEPTION (${origin}): ${err.stack || err.message}`);
+  // Don't exit — the engine should keep running through transient errors.
+  // If the error is truly fatal, Node.js will exit anyway.
+});
+
+process.on("unhandledRejection", (reason) => {
+  const msg = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  log(`UNHANDLED REJECTION: ${msg}`);
+  // Don't exit — log and continue. The dispatch try-catch should prevent
+  // most rejections, but this catches edge cases.
+});
+
 // --- Main ---
 
 // Pre-cache identity at startup
@@ -189,6 +208,23 @@ tick(); // First tick immediately
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
+
+// --- Tick watchdog ---
+// Detects if the tick loop has stalled and resets it.
+
+const WATCHDOG_INTERVAL_MS = 30_000;
+const WATCHDOG_MAX_STALL_MS = 60_000;
+
+setInterval(() => {
+  if (shuttingDown) return;
+  const stall = Date.now() - lastTickTime;
+  if (stall > WATCHDOG_MAX_STALL_MS) {
+    log(`WATCHDOG: Tick loop stalled for ${Math.round(stall / 1000)}s. Resetting.`);
+    if (tickTimer) clearInterval(tickTimer);
+    tickTimer = setInterval(tick, TICK_INTERVAL_MS);
+    tick();
+  }
+}, WATCHDOG_INTERVAL_MS);
 
 // Keep alive
 process.stdin.resume();
