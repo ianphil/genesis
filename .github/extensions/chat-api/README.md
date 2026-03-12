@@ -7,10 +7,57 @@ Exposes the Copilot CLI agent as an HTTP API, allowing external chat interfaces
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/chat` | Send a message and receive the agent's full response |
+| `POST` | `/v1/responses` | **OpenAI Responses API** — drop-in compatible |
+| `POST` | `/chat` | Simple: send a message, receive the agent's response |
 | `GET` | `/chat/stream?prompt=...` | SSE stream with token-by-token deltas |
 | `GET` | `/history` | Retrieve conversation history |
 | `GET` | `/health` | Liveness check |
+
+## OpenAI SDK Compatibility
+
+Any client that speaks the OpenAI Responses API can talk to your agent:
+
+```typescript
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  baseURL: 'http://127.0.0.1:<port>/v1',
+  apiKey: 'unused',           // no auth required for localhost
+});
+
+// Non-streaming
+const response = await client.responses.create({
+  model: 'copilot',           // ignored — agent picks its own model
+  input: 'What PRs need review?',
+});
+console.log(response.output_text);
+
+// Streaming
+const stream = await client.responses.create({
+  model: 'copilot',
+  input: 'Explain this codebase',
+  stream: true,
+});
+for await (const event of stream) {
+  if (event.type === 'response.output_text.delta') {
+    process.stdout.write(event.delta);
+  }
+}
+```
+
+### Request format
+
+```json
+{
+  "model": "copilot",
+  "input": "Your prompt here",
+  "instructions": "Optional system instructions",
+  "stream": false
+}
+```
+
+`input` accepts a string or an array of `{ role, content }` conversation items.
+`instructions` is prepended as system context. `stream: true` enables SSE.
 
 ## Usage
 
