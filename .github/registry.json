@@ -1,5 +1,5 @@
 {
-  "version": "0.9.0",
+  "version": "0.10.0",
   "source": "ianphil/genesis",
   "extensions": {
     "cron": {
@@ -26,6 +26,11 @@
       "version": "0.1.0",
       "path": ".github/extensions/responses",
       "description": "OpenAI Responses API–compatible HTTP server — external chat interfaces talk to the agent via standard SDK"
+    },
+    "tunnel": {
+      "version": "0.1.0",
+      "path": ".github/extensions/tunnel",
+      "description": "Expose local ports over the internet via Microsoft Dev Tunnels with tenant or anonymous access"
     }
   },
   "skills": {
