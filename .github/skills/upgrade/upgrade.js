@@ -7,7 +7,7 @@
 //   node upgrade.js install name1,name2 — install/update selected items
 //   node upgrade.js remove name1,name2  — remove selected items from local
 //   node upgrade.js pin name1,name2     — pin items to prevent removal
-//   node upgrade.js channel <name>      — switch release channel (e.g. main, insiders)
+//   node upgrade.js channel <name>      — switch release channel (e.g. main, frontier)
 
 const { execSync } = require("child_process");
 const fs = require("fs");
@@ -611,7 +611,7 @@ if (require.main === module) {
       if (!args[0]) {
         console.error(
           JSON.stringify({
-            error: 'Usage: node upgrade.js channel <name> (e.g. "main", "insiders")',
+            error: 'Usage: node upgrade.js channel <name> (e.g. "main", "frontier")',
           })
         );
         process.exit(1);

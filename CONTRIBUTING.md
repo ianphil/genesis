@@ -148,38 +148,38 @@ Genesis publishes two release channels:
 | Channel | Branch | Contents | Audience |
 |---------|--------|----------|----------|
 | **main** | `main` | Stable extensions and skills only | All agents |
-| **insiders** | `insiders` | Everything in main + experimental items | Opt-in agents |
+| **frontier** | `frontier` | Everything in main + experimental items | Opt-in agents |
 
 ### How it works
 
 - `main` is the stable trunk — lean and reliable
-- `insiders` is a **superset** that always rebases on `main`
-- New extensions and skills land on `insiders` first
+- `frontier` is a **superset** that always rebases on `main`
+- New extensions and skills land on `frontier` first
 - When an item stabilizes, it graduates to `main` via PR
 
 ### Adding new items
 
-1. Create a feature branch from `insiders`
+1. Create a feature branch from `frontier`
 2. Add your extension or skill
 3. Update `registry.json` on your branch (add the new entry)
-4. PR into `insiders` — this makes it available to insiders agents on next upgrade
+4. PR into `frontier` — this makes it available to frontier agents on next upgrade
 
 ### Graduating items to main
 
-1. Confirm the item is stable (tested, no breaking changes, used by insiders agents)
-2. PR from `insiders` into `main` — include only the graduating item
+1. Confirm the item is stable (tested, no breaking changes, used by frontier agents)
+2. PR from `frontier` into `main` — include only the graduating item
 3. Update `main`'s `registry.json` to include the new entry
 4. Bump the registry version
 
 ### Branch management
 
-- **`insiders` always rebases on `main`** — never merge main into insiders
-- **Rebase insiders after every merge to main** — bug fixes, version bumps, docs updates, graduations. Small frequent rebases are painless; big ones after weeks of drift are not.
-- Keep the two registries consistent — main's items should always be a subset of insiders
+- **`frontier` always rebases on `main`** — never merge main into frontier
+- **Rebase frontier after every merge to main** — bug fixes, version bumps, docs updates, graduations. Small frequent rebases are painless; big ones after weeks of drift are not.
+- Keep the two registries consistent — main's items should always be a subset of frontier
 
 ```bash
 # After every merge to main:
-git checkout insiders
+git checkout frontier
 git rebase main
 git push --force-with-lease
 ```
