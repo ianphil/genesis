@@ -5,6 +5,8 @@
 // Usage:
 //   node upgrade.js check              — compare local vs remote registry
 //   node upgrade.js install name1,name2 — install/update selected items
+//   node upgrade.js remove name1,name2  — remove selected items from local
+//   node upgrade.js pin name1,name2     — pin items to prevent removal
 
 const { execSync } = require("child_process");
 const fs = require("fs");
@@ -58,35 +60,22 @@ function writeLocalRegistry(root, registry) {
   fs.writeFileSync(p, JSON.stringify(registry, null, 2) + "\n", "utf8");
 }
 
+function makeStagedRemovalPath(itemDir) {
+  const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return path.join(
+    path.dirname(itemDir),
+    `${path.basename(itemDir)}.remove-${suffix}`
+  );
+}
+
 function parseSource(source) {
   const parts = source.split("/");
   return { owner: parts[0], repo: parts[1] };
 }
 
-// ── Check command ────────────────────────────────────────────────────────────
+// ── Pure logic (testable) ────────────────────────────────────────────────────
 
-function check() {
-  const root = findRepoRoot();
-  const local = readLocalRegistry(root);
-
-  if (!local.source) {
-    console.error(
-      JSON.stringify({ error: "No source configured in .github/registry.json" })
-    );
-    process.exit(1);
-  }
-
-  const { owner, repo } = parseSource(local.source);
-  const branch = local.branch || "main";
-
-  // Fetch remote registry
-  const remoteRaw = gh(
-    `/repos/${owner}/${repo}/contents/.github/registry.json?ref=${branch}`
-  );
-  const remote = JSON.parse(
-    Buffer.from(remoteRaw.content, "base64").toString("utf8")
-  );
-
+function diffRegistries(local, remote) {
   const result = {
     source: local.source,
     remoteVersion: remote.version,
@@ -95,6 +84,7 @@ function check() {
     updated: [],
     current: [],
     renamed: [],
+    removed: [],
     localOnly: [],
   };
 
@@ -152,17 +142,53 @@ function check() {
       if (!(name in remoteItems)) {
         // Skip if this is the old name of a rename (already reported above)
         if (name in renames) continue;
-        result.localOnly.push({
+
+        const item = {
           name,
           type: typeSingular,
           version: info.version,
           path: info.path,
           description: info.description,
-        });
+        };
+
+        // Pinned items go to localOnly; unpinned go to removed
+        if (info.local) {
+          result.localOnly.push(item);
+        } else {
+          result.removed.push(item);
+        }
       }
     }
   }
 
+  return result;
+}
+
+// ── Check command ────────────────────────────────────────────────────────────
+
+function check() {
+  const root = findRepoRoot();
+  const local = readLocalRegistry(root);
+
+  if (!local.source) {
+    console.error(
+      JSON.stringify({ error: "No source configured in .github/registry.json" })
+    );
+    process.exit(1);
+  }
+
+  const { owner, repo } = parseSource(local.source);
+  const branch = local.branch || "main";
+
+  // Fetch remote registry
+  const remoteRaw = gh(
+    `/repos/${owner}/${repo}/contents/.github/registry.json?ref=${branch}`
+  );
+  const remote = JSON.parse(
+    Buffer.from(remoteRaw.content, "base64").toString("utf8")
+  );
+
+  const result = diffRegistries(local, remote);
   console.log(JSON.stringify(result, null, 2));
 }
 
@@ -329,30 +355,198 @@ function install(names) {
   console.log(JSON.stringify(result, null, 2));
 }
 
+// ── Remove command ───────────────────────────────────────────────────────────
+
+function remove(names, root) {
+  root = root || findRepoRoot();
+  const local = readLocalRegistry(root);
+  const pendingRemovals = [];
+
+  const result = {
+    removed: [],
+    errors: [],
+    registryUpdated: false,
+  };
+
+  for (const name of names) {
+    let found = false;
+
+    for (const type of ["extensions", "skills"]) {
+      const items = local[type] || {};
+      if (!(name in items)) continue;
+
+      found = true;
+      const info = items[name];
+      const itemDir = path.join(root, info.path);
+      let stagedDir = null;
+
+      try {
+        if (fs.existsSync(itemDir)) {
+          stagedDir = makeStagedRemovalPath(itemDir);
+          fs.renameSync(itemDir, stagedDir);
+        }
+
+        delete local[type][name];
+        pendingRemovals.push({
+          name,
+          info,
+          type,
+          itemDir,
+          stagedDir,
+        });
+      } catch (e) {
+        if (stagedDir && fs.existsSync(stagedDir)) {
+          fs.renameSync(stagedDir, itemDir);
+        }
+        result.errors.push({
+          name,
+          error: e.message.slice(0, 300),
+        });
+      }
+      break;
+    }
+
+    if (!found) {
+      result.errors.push({
+        name,
+        error: "Not found in local registry (extensions or skills)",
+      });
+    }
+  }
+
+  if (pendingRemovals.length > 0) {
+    try {
+      writeLocalRegistry(root, local);
+      result.registryUpdated = true;
+
+      for (const item of pendingRemovals) {
+        if (item.stagedDir && fs.existsSync(item.stagedDir)) {
+          fs.rmSync(item.stagedDir, { recursive: true, force: true });
+        }
+
+        result.removed.push({
+          name: item.name,
+          type: item.type === "extensions" ? "extension" : "skill",
+          version: item.info.version,
+          path: item.info.path,
+        });
+      }
+    } catch (e) {
+      for (let i = pendingRemovals.length - 1; i >= 0; i--) {
+        const item = pendingRemovals[i];
+        local[item.type][item.name] = item.info;
+
+        if (item.stagedDir && fs.existsSync(item.stagedDir)) {
+          fs.renameSync(item.stagedDir, item.itemDir);
+        }
+
+        result.errors.push({
+          name: item.name,
+          error: `Failed to update registry: ${e.message.slice(0, 300)}`,
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
+// ── Pin command ──────────────────────────────────────────────────────────────
+
+function pin(names, root) {
+  root = root || findRepoRoot();
+  const local = readLocalRegistry(root);
+
+  const result = {
+    pinned: [],
+    errors: [],
+  };
+
+  for (const name of names) {
+    let found = false;
+
+    for (const type of ["extensions", "skills"]) {
+      const items = local[type] || {};
+      if (!(name in items)) continue;
+
+      found = true;
+      items[name].local = true;
+
+      result.pinned.push({
+        name,
+        type: type === "extensions" ? "extension" : "skill",
+        version: items[name].version,
+      });
+      break;
+    }
+
+    if (!found) {
+      result.errors.push({
+        name,
+        error: "Not found in local registry (extensions or skills)",
+      });
+    }
+  }
+
+  if (result.pinned.length > 0) {
+    writeLocalRegistry(root, local);
+  }
+
+  return result;
+}
+
+// ── Exports (for testing) ────────────────────────────────────────────────────
+
+module.exports = { compareSemver, diffRegistries, remove, pin };
+
 // ── CLI entry ────────────────────────────────────────────────────────────────
 
-const [, , command, ...args] = process.argv;
+if (require.main === module) {
+  const [, , command, ...args] = process.argv;
 
-switch (command) {
-  case "check":
-    check();
-    break;
-  case "install":
-    if (!args[0]) {
+  switch (command) {
+    case "check":
+      check();
+      break;
+    case "install":
+      if (!args[0]) {
+        console.error(
+          JSON.stringify({
+            error: "Usage: node upgrade.js install name1,name2,...",
+          })
+        );
+        process.exit(1);
+      }
+      install(args[0].split(",").map((s) => s.trim()));
+      break;
+    case "remove":
+      if (!args[0]) {
+        console.error(
+          JSON.stringify({
+            error: "Usage: node upgrade.js remove name1,name2,...",
+          })
+        );
+        process.exit(1);
+      }
+      console.log(JSON.stringify(remove(args[0].split(",").map((s) => s.trim())), null, 2));
+      break;
+    case "pin":
+      if (!args[0]) {
+        console.error(
+          JSON.stringify({
+            error: "Usage: node upgrade.js pin name1,name2,...",
+          })
+        );
+        process.exit(1);
+      }
+      console.log(JSON.stringify(pin(args[0].split(",").map((s) => s.trim())), null, 2));
+      break;
+    default:
       console.error(
         JSON.stringify({
-          error: "Usage: node upgrade.js install name1,name2,...",
+          error: `Unknown command: ${command}. Use "check", "install", "remove", or "pin".`,
         })
       );
       process.exit(1);
-    }
-    install(args[0].split(",").map((s) => s.trim()));
-    break;
-  default:
-    console.error(
-      JSON.stringify({
-        error: `Unknown command: ${command}. Use "check" or "install".`,
-      })
-    );
-    process.exit(1);
+  }
 }

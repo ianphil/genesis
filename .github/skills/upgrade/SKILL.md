@@ -35,7 +35,8 @@ This outputs JSON with the diff:
   "updated": [{"name": "daily-report", "type": "skill", "version": "0.2.0", "localVersion": "0.1.0", "description": "..."}],
   "current": [{"name": "commit", "type": "skill", "version": "0.1.0", "description": "..."}],
   "renamed": [{"oldName": "code-exec", "newName": "bridge", "type": "extension", "version": "0.2.0", "localVersion": "0.1.2", "description": "..."}],
-  "localOnly": []
+  "removed": [{"name": "tunnel", "type": "extension", "version": "0.1.0", "description": "..."}],
+  "localOnly": [{"name": "custom-tool", "type": "extension", "version": "0.1.0", "description": "..."}]
 }
 ```
 
@@ -53,18 +54,26 @@ Format the JSON into a human-readable summary:
 📦 Extensions:
   🆕 cron v0.3.0 — Scheduled job execution
   🔄 code-exec → bridge v0.2.0 — renamed
+  🗑️ tunnel v0.1.0 — removed from upstream
 
 📄 Skills:
   ✅ commit v0.3.0 — up to date
   ⬆️ daily-report v0.4.0 — update available (local: v0.3.0)
   🆕 copilot-extension v0.3.0 — SDK reference
 
-Install all new/updated/renamed? Or pick specific ones.
+📌 Pinned (local only):
+  📌 custom-tool v0.1.0 — kept locally
+
+Install all new/updated/renamed? Remove items deleted upstream? Or pick specific ones.
 ```
 
-Use the `ask_user` tool to let the user select what to install.
+Use the `ask_user` tool to let the user select what to install and what to remove.
 
-If everything is up to date (`new` and `updated` are both empty), say so and stop.
+If there are `removed` items, present them separately and explain they were deleted upstream. For each removed item, the user can either:
+- **Accept** — the item will be deleted locally
+- **Decline** — the item will be pinned (`local: true`) and never flagged again
+
+If everything is up to date (`new`, `updated`, and `removed` are all empty), say so and stop.
 
 ## Phase 3: Install Selected Items
 
@@ -93,6 +102,48 @@ Output JSON:
 
 Items with `renamedFrom` indicate a rename was processed — the old directory was removed and the old registry entry deleted.
 
+## Phase 3b: Remove Selected Items
+
+For items the user accepted for removal, run:
+
+```bash
+node .github/skills/upgrade/upgrade.js remove tunnel,old-skill
+```
+
+This:
+- Looks up each name in the local registry (extensions and skills)
+- Deletes the directory from disk
+- Removes the entry from `.github/registry.json`
+
+Output JSON:
+
+```json
+{
+  "removed": [{"name": "tunnel", "type": "extension", "version": "0.1.0", "path": ".github/extensions/tunnel"}],
+  "errors": [],
+  "registryUpdated": true
+}
+```
+
+## Phase 3c: Pin Declined Removals
+
+For removed items the user chose to **keep**, pin them so they won't be flagged again:
+
+```bash
+node .github/skills/upgrade/upgrade.js pin tunnel
+```
+
+This sets `"local": true` on the item in `.github/registry.json`. Future `check` runs will list it under `localOnly` instead of `removed`.
+
+Output JSON:
+
+```json
+{
+  "pinned": [{"name": "tunnel", "type": "extension", "version": "0.1.0"}],
+  "errors": []
+}
+```
+
 ## Phase 4: Summary
 
 Format the install results:
@@ -115,6 +166,15 @@ Renamed:
 Local registry updated to v0.8.0.
 ```
 
+If any items were removed:
+```
+Removed:
+  🗑️ tunnel v0.1.0 — directory deleted
+
+Pinned (kept locally):
+  📌 old-tool v0.1.0 — will not be flagged again
+```
+
 If any extensions were installed or updated, remind the user:
 > "New extensions installed. Restart your Copilot session to activate them, or I can reload extensions now."
 
@@ -122,9 +182,11 @@ If there are errors in the output, report them clearly and suggest retrying indi
 
 ## Rules
 
-- **Never delete local-only items** — the script preserves them automatically
+- **Never delete pinned (local-only) items** — items with `local: true` are preserved and skipped during removal checks
 - **Never modify files outside of `.github/extensions/` and `.github/skills/`** — the script only touches these paths
-- **Always show the diff before installing** — never auto-install without user confirmation
+- **Always show the diff before installing or removing** — never auto-install or auto-remove without user confirmation
+- **Removals are destructive** — they delete the directory from disk. Always confirm with the user before removing
+- **Declined removals get pinned** — if the user declines a removal, pin it with `upgrade.js pin` so it won't be flagged again
 - **Renames are destructive** — they delete the old directory. Always confirm with the user before installing a renamed item
 - **Old names auto-resolve** — if a user requests an old name (e.g. `code-exec`), the script resolves it to the new name via the `renames` map
 - **Skip items the user doesn't select** — respect their choices
