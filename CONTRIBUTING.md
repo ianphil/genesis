@@ -174,8 +174,15 @@ Genesis publishes two release channels:
 ### Branch management
 
 - **`insiders` always rebases on `main`** — never merge main into insiders
-- After graduating items to main, rebase insiders to pick up the changes
+- **Rebase insiders after every merge to main** — bug fixes, version bumps, docs updates, graduations. Small frequent rebases are painless; big ones after weeks of drift are not.
 - Keep the two registries consistent — main's items should always be a subset of insiders
+
+```bash
+# After every merge to main:
+git checkout insiders
+git rebase main
+git push --force-with-lease
+```
 
 ## License
 
