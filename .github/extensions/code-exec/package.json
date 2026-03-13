@@ -1,0 +1,8 @@
+{
+  "name": "copilot-code-exec-extension",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.21.0"
+  }
+}
