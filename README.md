@@ -58,9 +58,9 @@ Minds evolve. New senses and skills can be pulled from the genesis registry at a
 
 No git remotes. No manual downloads. The mind upgrades itself through its own tools.
 
-### Insiders Channel
+### Frontier Channel
 
-Additional senses are available on the **insiders** channel for agents who want to live on the edge:
+Additional senses are available on the **frontier** channel for agents who want to push beyond the known map:
 
 | Extension | Sense |
 |-----------|-------|
@@ -70,7 +70,7 @@ Additional senses are available on the **insiders** channel for agents who want 
 | tunnel | **Reach** ...  expose local ports to the internet via Dev Tunnels |
 
 ```
-> Switch to insiders channel
+> Switch to frontier channel
 ```
 
 ## The Maze

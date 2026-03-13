@@ -14,7 +14,7 @@ Check the genesis template for new or updated extensions and skills, then instal
 - `gh` CLI must be authenticated (`gh auth status`)
 - `.github/registry.json` must exist with a `source` field (e.g. `"source": "ianphil/genesis"`)
 - Optional `"branch"` field in `registry.json` to track a non-main branch (defaults to `"main"`)
-- Optional `"channel"` field in `registry.json` to select a release channel (e.g. `"main"`, `"insiders"`). Takes precedence over `"branch"`. Defaults to `"main"`.
+- Optional `"channel"` field in `registry.json` to select a release channel (e.g. `"main"`, `"frontier"`). Takes precedence over `"branch"`. Defaults to `"main"`.
 - If `registry.json` is missing or has no `source`, ask the user for the source repo (default: `ianphil/genesis`) and create it
 
 ## Channels
@@ -22,17 +22,17 @@ Check the genesis template for new or updated extensions and skills, then instal
 Genesis publishes two release channels:
 
 - **main** — stable, minimal set (cron, canvas, commit, daily-report, upgrade)
-- **insiders** — superset of main with experimental extensions and skills
+- **frontier** — superset of main with experimental extensions and skills
 
 ### Switch channels
 
 ```bash
-node .github/skills/upgrade/upgrade.js channel insiders
+node .github/skills/upgrade/upgrade.js channel frontier
 ```
 
 This:
-- Sets `"channel": "insiders"` in the local registry
-- Fetches the remote registry from the `insiders` branch
+- Sets `"channel": "frontier"` in the local registry
+- Fetches the remote registry from the `frontier` branch
 - Returns a diff showing what items would be added or removed
 
 The output is the same format as `check` — present it to the user with the same UX. New items need `install`, removed items need `remove` or `pin`.
@@ -43,7 +43,7 @@ To switch back:
 node .github/skills/upgrade/upgrade.js channel main
 ```
 
-Items that only exist on insiders will appear as `removed`. The user can accept the removal or pin them to keep locally.
+Items that only exist on frontier will appear as `removed`. The user can accept the removal or pin them to keep locally.
 
 ### Already on target channel
 

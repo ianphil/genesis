@@ -460,7 +460,7 @@ describe("resolveChannel", () => {
   });
 
   it("returns channel when set", () => {
-    assert.equal(resolveChannel({ channel: "insiders" }), "insiders");
+    assert.equal(resolveChannel({ channel: "frontier" }), "frontier");
   });
 
   it("falls back to branch when channel is not set", () => {
@@ -468,14 +468,14 @@ describe("resolveChannel", () => {
   });
 
   it("channel takes precedence over branch", () => {
-    assert.equal(resolveChannel({ channel: "insiders", branch: "develop" }), "insiders");
+    assert.equal(resolveChannel({ channel: "frontier", branch: "develop" }), "frontier");
   });
 });
 
 // ── diffRegistries — channel switching scenarios ─────────────────────────────
 
 describe("diffRegistries — channel switching", () => {
-  it("switching from main to insiders shows new items", () => {
+  it("switching from main to frontier shows new items", () => {
     const local = makeLocal({
       channel: "main",
       extensions: {
@@ -487,7 +487,7 @@ describe("diffRegistries — channel switching", () => {
         upgrade: { version: "0.4.0", path: ".github/skills/upgrade", description: "Upgrade" },
       },
     });
-    const insidersRemote = makeRemote({
+    const frontierRemote = makeRemote({
       extensions: {
         cron: { version: "0.1.4", path: ".github/extensions/cron", description: "Cron" },
         canvas: { version: "0.1.3", path: ".github/extensions/canvas", description: "Canvas" },
@@ -501,7 +501,7 @@ describe("diffRegistries — channel switching", () => {
       },
     });
 
-    const result = diffRegistries(local, insidersRemote);
+    const result = diffRegistries(local, frontierRemote);
 
     // Everything from main should be current
     assert.equal(result.current.length, 4);
@@ -513,9 +513,9 @@ describe("diffRegistries — channel switching", () => {
     assert.equal(result.removed.length, 0);
   });
 
-  it("switching from insiders to main shows removable items", () => {
+  it("switching from frontier to main shows removable items", () => {
     const local = makeLocal({
-      channel: "insiders",
+      channel: "frontier",
       extensions: {
         cron: { version: "0.1.4", path: ".github/extensions/cron", description: "Cron" },
         canvas: { version: "0.1.3", path: ".github/extensions/canvas", description: "Canvas" },
