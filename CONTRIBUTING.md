@@ -141,6 +141,42 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - **Don't skip tests** — if tests exist for the code you changed, run them
 - **Don't modify `registry.json` by hand** — it's managed by the upgrade script
 
+## Release Channels
+
+Genesis publishes two release channels:
+
+| Channel | Branch | Contents | Audience |
+|---------|--------|----------|----------|
+| **main** | `main` | Stable extensions and skills only | All agents |
+| **insiders** | `insiders` | Everything in main + experimental items | Opt-in agents |
+
+### How it works
+
+- `main` is the stable trunk — lean and reliable
+- `insiders` is a **superset** that always rebases on `main`
+- New extensions and skills land on `insiders` first
+- When an item stabilizes, it graduates to `main` via PR
+
+### Adding new items
+
+1. Create a feature branch from `insiders`
+2. Add your extension or skill
+3. Update `registry.json` on your branch (add the new entry)
+4. PR into `insiders` — this makes it available to insiders agents on next upgrade
+
+### Graduating items to main
+
+1. Confirm the item is stable (tested, no breaking changes, used by insiders agents)
+2. PR from `insiders` into `main` — include only the graduating item
+3. Update `main`'s `registry.json` to include the new entry
+4. Bump the registry version
+
+### Branch management
+
+- **`insiders` always rebases on `main`** — never merge main into insiders
+- After graduating items to main, rebase insiders to pick up the changes
+- Keep the two registries consistent — main's items should always be a subset of insiders
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the same license as the project (see [LICENSE](LICENSE)).

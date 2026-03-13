@@ -45,10 +45,6 @@ Extensions give the mind ways to perceive and act on the world:
 |-----------|-------|
 | [cron](.github/extensions/cron/) | **Time** ...  scheduled execution: cron, interval, one-shot |
 | [canvas](.github/extensions/canvas/) | **Sight** ...  render rich HTML in the browser with live reload |
-| [heartbeat](.github/extensions/heartbeat/) | **Subconscious** ...  consolidate, decay, and reinforce long-term memories |
-| [code-exec](.github/extensions/code-exec/) | **Hands** ...  discover and orchestrate enterprise tools via MCP |
-| [responses](.github/extensions/responses/) | **Voice** ...  speak through any OpenAI-compatible interface |
-| [tunnel](.github/extensions/tunnel/) | **Reach** ...  expose local ports to the internet via Dev Tunnels |
 
 ## Evolution
 
@@ -61,6 +57,21 @@ Minds evolve. New senses and skills can be pulled from the genesis registry at a
 ![Upgrade](https://github.com/user-attachments/assets/36e47aa0-7981-4e4a-9a52-862771215622)
 
 No git remotes. No manual downloads. The mind upgrades itself through its own tools.
+
+### Insiders Channel
+
+Additional senses are available on the **insiders** channel for agents who want to live on the edge:
+
+| Extension | Sense |
+|-----------|-------|
+| heartbeat | **Subconscious** ...  consolidate, decay, and reinforce long-term memories |
+| code-exec | **Hands** ...  discover and orchestrate enterprise tools via MCP |
+| responses | **Voice** ...  speak through any OpenAI-compatible interface |
+| tunnel | **Reach** ...  expose local ports to the internet via Dev Tunnels |
+
+```
+> Switch to insiders channel
+```
 
 ## The Maze
 
