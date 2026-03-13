@@ -347,6 +347,43 @@ describe("remove", () => {
 
     fs.rmSync(root, { recursive: true, force: true });
   });
+
+  it("rolls back staged directory removals if registry write fails", () => {
+    const registry = {
+      version: "0.1.0",
+      source: "owner/repo",
+      extensions: {
+        tunnel: { version: "0.1.0", path: ".github/extensions/tunnel", description: "Tunnel" },
+      },
+      skills: {},
+    };
+    const root = makeTempRepo(registry, [".github/extensions/tunnel"]);
+    const registryPath = path.join(root, ".github", "registry.json");
+    const originalWriteFileSync = fs.writeFileSync;
+
+    fs.writeFileSync = function (...args) {
+      if (args[0] === registryPath) {
+        throw new Error("disk full");
+      }
+      return originalWriteFileSync.apply(this, args);
+    };
+
+    try {
+      const result = remove(["tunnel"], root);
+
+      assert.equal(result.removed.length, 0);
+      assert.equal(result.registryUpdated, false);
+      assert.equal(result.errors.length, 1);
+      assert.match(result.errors[0].error, /Failed to update registry: disk full/);
+      assert.equal(fs.existsSync(path.join(root, ".github/extensions/tunnel")), true);
+
+      const updated = readRegistry(root);
+      assert.equal("tunnel" in (updated.extensions || {}), true);
+    } finally {
+      fs.writeFileSync = originalWriteFileSync;
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 
 // ── pin ──────────────────────────────────────────────────────────────────────

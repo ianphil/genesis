@@ -60,6 +60,14 @@ function writeLocalRegistry(root, registry) {
   fs.writeFileSync(p, JSON.stringify(registry, null, 2) + "\n", "utf8");
 }
 
+function makeStagedRemovalPath(itemDir) {
+  const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return path.join(
+    path.dirname(itemDir),
+    `${path.basename(itemDir)}.remove-${suffix}`
+  );
+}
+
 function parseSource(source) {
   const parts = source.split("/");
   return { owner: parts[0], repo: parts[1] };
@@ -352,6 +360,7 @@ function install(names) {
 function remove(names, root) {
   root = root || findRepoRoot();
   const local = readLocalRegistry(root);
+  const pendingRemovals = [];
 
   const result = {
     removed: [],
@@ -369,21 +378,26 @@ function remove(names, root) {
       found = true;
       const info = items[name];
       const itemDir = path.join(root, info.path);
+      let stagedDir = null;
 
       try {
         if (fs.existsSync(itemDir)) {
-          fs.rmSync(itemDir, { recursive: true, force: true });
+          stagedDir = makeStagedRemovalPath(itemDir);
+          fs.renameSync(itemDir, stagedDir);
         }
 
         delete local[type][name];
-
-        result.removed.push({
+        pendingRemovals.push({
           name,
-          type: type === "extensions" ? "extension" : "skill",
-          version: info.version,
-          path: info.path,
+          info,
+          type,
+          itemDir,
+          stagedDir,
         });
       } catch (e) {
+        if (stagedDir && fs.existsSync(stagedDir)) {
+          fs.renameSync(stagedDir, itemDir);
+        }
         result.errors.push({
           name,
           error: e.message.slice(0, 300),
@@ -400,9 +414,38 @@ function remove(names, root) {
     }
   }
 
-  if (result.removed.length > 0) {
-    writeLocalRegistry(root, local);
-    result.registryUpdated = true;
+  if (pendingRemovals.length > 0) {
+    try {
+      writeLocalRegistry(root, local);
+      result.registryUpdated = true;
+
+      for (const item of pendingRemovals) {
+        if (item.stagedDir && fs.existsSync(item.stagedDir)) {
+          fs.rmSync(item.stagedDir, { recursive: true, force: true });
+        }
+
+        result.removed.push({
+          name: item.name,
+          type: item.type === "extensions" ? "extension" : "skill",
+          version: item.info.version,
+          path: item.info.path,
+        });
+      }
+    } catch (e) {
+      for (let i = pendingRemovals.length - 1; i >= 0; i--) {
+        const item = pendingRemovals[i];
+        local[item.type][item.name] = item.info;
+
+        if (item.stagedDir && fs.existsSync(item.stagedDir)) {
+          fs.renameSync(item.stagedDir, item.itemDir);
+        }
+
+        result.errors.push({
+          name: item.name,
+          error: `Failed to update registry: ${e.message.slice(0, 300)}`,
+        });
+      }
+    }
   }
 
   return result;
