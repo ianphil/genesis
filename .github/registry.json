@@ -1,7 +1,7 @@
 {
   "version": "0.13.0",
   "source": "ianphil/genesis",
-  "channel": "main",
+  "channel": "frontier",
   "extensions": {
     "cron": {
       "version": "0.1.4",
@@ -12,6 +12,26 @@
       "version": "0.1.3",
       "path": ".github/extensions/canvas",
       "description": "Display rich HTML content in the browser with SSE live reload"
+    },
+    "heartbeat": {
+      "version": "0.1.2",
+      "path": ".github/extensions/heartbeat",
+      "description": "Memory maintenance — consolidate session log to long-term memory, decay stale entries, reinforce active ones"
+    },
+    "code-exec": {
+      "version": "0.1.2",
+      "path": ".github/extensions/code-exec",
+      "description": "Universal MCP connector — discover, call, and orchestrate enterprise tools with progressive disclosure"
+    },
+    "responses": {
+      "version": "0.1.0",
+      "path": ".github/extensions/responses",
+      "description": "OpenAI Responses API–compatible HTTP server — external chat interfaces talk to the agent via standard SDK"
+    },
+    "tunnel": {
+      "version": "0.1.0",
+      "path": ".github/extensions/tunnel",
+      "description": "Expose local ports over the internet via Microsoft Dev Tunnels with tenant or anonymous access"
     }
   },
   "skills": {
@@ -25,10 +45,20 @@
       "path": ".github/skills/daily-report",
       "description": "Morning briefing — ADO, Teams, calendar, email, mind next-actions"
     },
+    "copilot-extension": {
+      "version": "0.1.1",
+      "path": ".github/skills/copilot-extension",
+      "description": "SDK reference for building and debugging Copilot CLI extensions"
+    },
     "upgrade": {
       "version": "0.4.0",
       "path": ".github/skills/upgrade",
       "description": "Pull new extensions and skills from the genesis template registry"
+    },
+    "agent-comms": {
+      "version": "0.1.0",
+      "path": ".github/skills/agent-comms",
+      "description": "Inter-agent communication via the Agent Handshake Protocol — establish bidirectional messaging between genesis agents over Dev Tunnels"
     }
   }
 }
