@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { compareSemver, diffRegistries, remove, pin } = require("./upgrade.js");
+const { compareSemver, diffRegistries, remove, pin, resolveChannel } = require("./upgrade.js");
 
 // ── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -449,5 +449,105 @@ describe("pin", () => {
     assert.equal(diff.localOnly[0].name, "tunnel");
 
     fs.rmSync(root, { recursive: true, force: true });
+  });
+});
+
+// ── resolveChannel ───────────────────────────────────────────────────────────
+
+describe("resolveChannel", () => {
+  it("defaults to main when no channel or branch set", () => {
+    assert.equal(resolveChannel({ version: "0.1.0", source: "o/r" }), "main");
+  });
+
+  it("returns channel when set", () => {
+    assert.equal(resolveChannel({ channel: "insiders" }), "insiders");
+  });
+
+  it("falls back to branch when channel is not set", () => {
+    assert.equal(resolveChannel({ branch: "develop" }), "develop");
+  });
+
+  it("channel takes precedence over branch", () => {
+    assert.equal(resolveChannel({ channel: "insiders", branch: "develop" }), "insiders");
+  });
+});
+
+// ── diffRegistries — channel switching scenarios ─────────────────────────────
+
+describe("diffRegistries — channel switching", () => {
+  it("switching from main to insiders shows new items", () => {
+    const local = makeLocal({
+      channel: "main",
+      extensions: {
+        cron: { version: "0.1.4", path: ".github/extensions/cron", description: "Cron" },
+        canvas: { version: "0.1.3", path: ".github/extensions/canvas", description: "Canvas" },
+      },
+      skills: {
+        commit: { version: "0.1.0", path: ".github/skills/commit", description: "Commit" },
+        upgrade: { version: "0.4.0", path: ".github/skills/upgrade", description: "Upgrade" },
+      },
+    });
+    const insidersRemote = makeRemote({
+      extensions: {
+        cron: { version: "0.1.4", path: ".github/extensions/cron", description: "Cron" },
+        canvas: { version: "0.1.3", path: ".github/extensions/canvas", description: "Canvas" },
+        heartbeat: { version: "0.1.2", path: ".github/extensions/heartbeat", description: "Heartbeat" },
+        "code-exec": { version: "0.1.2", path: ".github/extensions/code-exec", description: "Code Exec" },
+      },
+      skills: {
+        commit: { version: "0.1.0", path: ".github/skills/commit", description: "Commit" },
+        upgrade: { version: "0.4.0", path: ".github/skills/upgrade", description: "Upgrade" },
+        "agent-comms": { version: "0.1.0", path: ".github/skills/agent-comms", description: "Agent Comms" },
+      },
+    });
+
+    const result = diffRegistries(local, insidersRemote);
+
+    // Everything from main should be current
+    assert.equal(result.current.length, 4);
+    // Insiders-only items should be new
+    assert.equal(result.new.length, 3);
+    const newNames = result.new.map((i) => i.name).sort();
+    assert.deepEqual(newNames, ["agent-comms", "code-exec", "heartbeat"]);
+    // Nothing removed
+    assert.equal(result.removed.length, 0);
+  });
+
+  it("switching from insiders to main shows removable items", () => {
+    const local = makeLocal({
+      channel: "insiders",
+      extensions: {
+        cron: { version: "0.1.4", path: ".github/extensions/cron", description: "Cron" },
+        canvas: { version: "0.1.3", path: ".github/extensions/canvas", description: "Canvas" },
+        heartbeat: { version: "0.1.2", path: ".github/extensions/heartbeat", description: "Heartbeat" },
+        "code-exec": { version: "0.1.2", path: ".github/extensions/code-exec", description: "Code Exec" },
+      },
+      skills: {
+        commit: { version: "0.1.0", path: ".github/skills/commit", description: "Commit" },
+        upgrade: { version: "0.4.0", path: ".github/skills/upgrade", description: "Upgrade" },
+        "agent-comms": { version: "0.1.0", path: ".github/skills/agent-comms", description: "Agent Comms" },
+      },
+    });
+    const mainRemote = makeRemote({
+      extensions: {
+        cron: { version: "0.1.4", path: ".github/extensions/cron", description: "Cron" },
+        canvas: { version: "0.1.3", path: ".github/extensions/canvas", description: "Canvas" },
+      },
+      skills: {
+        commit: { version: "0.1.0", path: ".github/skills/commit", description: "Commit" },
+        upgrade: { version: "0.4.0", path: ".github/skills/upgrade", description: "Upgrade" },
+      },
+    });
+
+    const result = diffRegistries(local, mainRemote);
+
+    // Main items should be current
+    assert.equal(result.current.length, 4);
+    // Insiders-only items should be flagged as removed
+    assert.equal(result.removed.length, 3);
+    const removedNames = result.removed.map((i) => i.name).sort();
+    assert.deepEqual(removedNames, ["agent-comms", "code-exec", "heartbeat"]);
+    // Nothing new
+    assert.equal(result.new.length, 0);
   });
 });

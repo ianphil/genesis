@@ -7,6 +7,7 @@
 //   node upgrade.js install name1,name2 — install/update selected items
 //   node upgrade.js remove name1,name2  — remove selected items from local
 //   node upgrade.js pin name1,name2     — pin items to prevent removal
+//   node upgrade.js channel <name>      — switch release channel (e.g. main, insiders)
 
 const { execSync } = require("child_process");
 const fs = require("fs");
@@ -66,6 +67,10 @@ function makeStagedRemovalPath(itemDir) {
     path.dirname(itemDir),
     `${path.basename(itemDir)}.remove-${suffix}`
   );
+}
+
+function resolveChannel(local) {
+  return local.channel || local.branch || "main";
 }
 
 function parseSource(source) {
@@ -178,7 +183,7 @@ function check() {
   }
 
   const { owner, repo } = parseSource(local.source);
-  const branch = local.branch || "main";
+  const branch = resolveChannel(local);
 
   // Fetch remote registry
   const remoteRaw = gh(
@@ -189,6 +194,7 @@ function check() {
   );
 
   const result = diffRegistries(local, remote);
+  result.channel = branch;
   console.log(JSON.stringify(result, null, 2));
 }
 
@@ -198,7 +204,7 @@ function install(names) {
   const root = findRepoRoot();
   const local = readLocalRegistry(root);
   const { owner, repo } = parseSource(local.source);
-  const branch = local.branch || "main";
+  const branch = resolveChannel(local);
 
   // Fetch remote registry
   const remoteRaw = gh(
@@ -495,9 +501,69 @@ function pin(names, root) {
   return result;
 }
 
+// ── Channel command ──────────────────────────────────────────────────────────
+
+function channel(name) {
+  const root = findRepoRoot();
+  const local = readLocalRegistry(root);
+
+  if (!local.source) {
+    console.error(
+      JSON.stringify({ error: "No source configured in .github/registry.json" })
+    );
+    process.exit(1);
+  }
+
+  const previous = resolveChannel(local);
+
+  if (name === previous) {
+    console.log(
+      JSON.stringify({
+        channel: name,
+        changed: false,
+        message: `Already on channel "${name}".`,
+      })
+    );
+    return;
+  }
+
+  const { owner, repo } = parseSource(local.source);
+
+  // Fetch remote registry from the target channel branch
+  let remote;
+  try {
+    const remoteRaw = gh(
+      `/repos/${owner}/${repo}/contents/.github/registry.json?ref=${name}`
+    );
+    remote = JSON.parse(
+      Buffer.from(remoteRaw.content, "base64").toString("utf8")
+    );
+  } catch (e) {
+    console.error(
+      JSON.stringify({
+        error: `Failed to fetch registry from channel "${name}". Does the branch exist? ${e.message.slice(0, 200)}`,
+      })
+    );
+    process.exit(1);
+  }
+
+  // Update the channel in local registry
+  local.channel = name;
+  delete local.branch; // channel supersedes branch
+  writeLocalRegistry(root, local);
+
+  // Diff against the target channel's registry
+  const diff = diffRegistries(local, remote);
+  diff.channel = name;
+  diff.previousChannel = previous;
+  diff.changed = true;
+
+  console.log(JSON.stringify(diff, null, 2));
+}
+
 // ── Exports (for testing) ────────────────────────────────────────────────────
 
-module.exports = { compareSemver, diffRegistries, remove, pin };
+module.exports = { compareSemver, diffRegistries, remove, pin, resolveChannel };
 
 // ── CLI entry ────────────────────────────────────────────────────────────────
 
@@ -541,10 +607,21 @@ if (require.main === module) {
       }
       console.log(JSON.stringify(pin(args[0].split(",").map((s) => s.trim())), null, 2));
       break;
+    case "channel":
+      if (!args[0]) {
+        console.error(
+          JSON.stringify({
+            error: 'Usage: node upgrade.js channel <name> (e.g. "main", "insiders")',
+          })
+        );
+        process.exit(1);
+      }
+      channel(args[0].trim());
+      break;
     default:
       console.error(
         JSON.stringify({
-          error: `Unknown command: ${command}. Use "check", "install", "remove", or "pin".`,
+          error: `Unknown command: ${command}. Use "check", "install", "remove", "pin", or "channel".`,
         })
       );
       process.exit(1);
