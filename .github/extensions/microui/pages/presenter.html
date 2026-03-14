@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html><head><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;overflow:hidden}
+
+/* ---------- Left: Presentation ---------- */
+.pres{flex:1;display:flex;flex-direction:column;border-right:1px solid #21262d}
+.pres-area{flex:1;display:flex;align-items:center;justify-content:center;padding:48px;overflow:auto}
+.slide-content{width:100%;max-width:900px;text-align:center}
+.slide-content h1{font-size:2.8rem;font-weight:700;background:linear-gradient(135deg,#58a6ff,#3fb950);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:12px}
+.slide-content h2{font-size:1.4rem;color:#8b949e;font-weight:400;margin-bottom:24px}
+.slide-content p{color:#8b949e;font-size:1rem;line-height:1.6}
+.pres-footer{padding:10px 24px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #21262d;flex-shrink:0}
+.pres-footer .page{font-size:0.75rem;color:#484f58}
+.pres-footer .badge{font-size:0.65rem;color:#3fb950;background:rgba(63,185,80,0.1);padding:3px 10px;border-radius:10px;border:1px solid rgba(63,185,80,0.2)}
+.pres-footer .exit{font-size:0.65rem;color:#f85149;cursor:pointer;text-decoration:none}
+.pres-footer .exit:hover{text-decoration:underline}
+
+/* ---------- Right: Chat ---------- */
+.chat{width:360px;display:flex;flex-direction:column;flex-shrink:0;background:#161b22}
+.chat-header{padding:10px 14px;border-bottom:1px solid #30363d;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.chat-header .dot{width:7px;height:7px;border-radius:50%;background:#3fb950}
+.chat-header h3{font-size:0.8rem;font-weight:500}
+.chat-header .status{font-size:0.7rem;color:#8b949e;margin-left:auto}
+.messages{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+.messages::-webkit-scrollbar{width:5px}
+.messages::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
+.msg{max-width:90%;padding:8px 12px;border-radius:10px;font-size:0.82rem;line-height:1.45;word-wrap:break-word;white-space:pre-wrap}
+.msg.user{align-self:flex-end;background:#1f6feb;color:#fff;border-bottom-right-radius:3px}
+.msg.agent{align-self:flex-start;background:#0d1117;border:1px solid #30363d;border-bottom-left-radius:3px}
+.msg.agent .label{font-size:0.65rem;color:#8b949e;margin-bottom:3px}
+.msg.error{align-self:center;background:#3d1114;border:1px solid #f8514950;color:#f85149;font-size:0.75rem;border-radius:6px}
+.msg.system{align-self:center;color:#484f58;font-size:0.72rem;font-style:italic}
+.typing{display:inline-flex;gap:3px;padding:8px 12px}
+.typing span{width:5px;height:5px;background:#8b949e;border-radius:50%;animation:bounce 1.4s infinite ease-in-out}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+.input-area{padding:10px;border-top:1px solid #30363d;display:flex;gap:6px;flex-shrink:0}
+.input-area textarea{flex:1;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-family:inherit;font-size:0.82rem;resize:none;outline:none;min-height:36px;max-height:100px}
+.input-area textarea:focus{border-color:#1f6feb}
+.input-area button{padding:8px 14px;background:#1f6feb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.8rem;font-weight:500;align-self:flex-end}
+.input-area button:hover{background:#388bfd}
+.input-area button:disabled{background:#30363d;color:#484f58;cursor:default}
+
+.waiting{display:flex;align-items:center;gap:6px;color:#484f58;font-size:0.8rem;margin-top:16px}
+.waiting .dot{width:7px;height:7px;border-radius:50%;background:#58a6ff;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+</style></head><body>
+
+<!-- Presentation Side -->
+<div class="pres">
+  <div class="pres-area">
+    <div class="slide-content" id="slideArea">
+      <h1>Presentation Mode</h1>
+      <h2>Live slides powered by MicroUI v2</h2>
+      <p>Type in the chat to generate slides. The agent will parse the response and render them here in real-time.</p>
+      <div class="waiting"><span class="dot"></span> Waiting for input...</div>
+    </div>
+  </div>
+  <div class="pres-footer">
+    <span class="page" id="slideNum">Slide 1</span>
+    <span class="badge">● Live</span>
+    <a class="exit" href="#" onclick="if(window.genesis)window.genesis.close();else window.close();return false;">✕ Exit</a>
+  </div>
+</div>
+
+<!-- Chat Side -->
+<div class="chat">
+  <div class="chat-header">
+    <div class="dot"></div>
+    <h3>Chat</h3>
+    <span class="status" id="statusText">Connected</span>
+  </div>
+  <div class="messages" id="messages">
+    <div class="msg system">Describe slides here. The agent will update the presentation.</div>
+  </div>
+  <div class="input-area">
+    <textarea id="input" rows="1" placeholder="Describe a slide..." autofocus></textarea>
+    <button id="sendBtn" onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<script>
+var slideArea = document.getElementById('slideArea');
+var slideNum = document.getElementById('slideNum');
+var msgContainer = document.getElementById('messages');
+var inputEl = document.getElementById('input');
+var sendBtn = document.getElementById('sendBtn');
+var isStreaming = false;
+var currentAgentMsg = null;
+var slideCount = 1;
+var API_PORT = 15210;
+var fullResponse = '';
+
+var SYSTEM_PROMPT = 'You are in PRESENTATION MODE. The user is viewing a split-screen: ' +
+  'presentation on the left, chat on the right. When the user asks for a slide, respond with ' +
+  'the slide HTML wrapped in [SLIDE]...[/SLIDE] markers. The HTML inside should be a ' +
+  'self-contained fragment with inline styles (dark theme, bg #0d1117, text #e6edf3). ' +
+  'Use large fonts, vibrant colors (#58a6ff, #3fb950, #d29922, #f0883e, #bc4dff), and clean layout. ' +
+  'Keep slides visual — use emoji, boxes, diagrams. After the [SLIDE] block, add a brief chat message.';
+
+inputEl.addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+});
+inputEl.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+function sendMessage() {
+  var text = inputEl.value.trim();
+  if (!text || isStreaming) return;
+  addMessage('user', text);
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+  isStreaming = true;
+  fullResponse = '';
+  sendBtn.disabled = true;
+
+  var typing = document.createElement('div');
+  typing.className = 'msg agent'; typing.id = 'typing';
+  typing.innerHTML = '<div class="label">Agent</div><div class="typing"><span></span><span></span><span></span></div>';
+  msgContainer.appendChild(typing);
+  scrollToBottom();
+
+  fetch('http://127.0.0.1:' + API_PORT + '/v1/responses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'copilot',
+      input: SYSTEM_PROMPT + ' User request: ' + text,
+      stream: true
+    })
+  }).then(function(response) {
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    var started = false;
+
+    function pump() {
+      return reader.read().then(function(result) {
+        if (result.done) { onDone(); return; }
+        buffer += decoder.decode(result.value, { stream: true });
+        var lines = buffer.split('\n');
+        buffer = lines.pop();
+        var currentEvent = '';
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          if (line.indexOf('event: ') === 0) { currentEvent = line.substring(7).trim(); }
+          else if (line.indexOf('data: ') === 0 && currentEvent === 'response.output_text.delta') {
+            try {
+              var data = JSON.parse(line.substring(6));
+              if (data.delta) {
+                if (!started) { started = true; onStreamStart(); }
+                onToken(data.delta);
+              }
+            } catch(e) {}
+            currentEvent = '';
+          }
+        }
+        return pump();
+      });
+    }
+    return pump();
+  }).catch(function(err) { onError(err.message || 'Connection failed'); });
+}
+
+function addMessage(role, text) {
+  var div = document.createElement('div');
+  div.className = 'msg ' + role;
+  if (role === 'agent') {
+    div.innerHTML = '<div class="label">Agent</div><span class="text"></span>';
+    div.querySelector('.text').textContent = text;
+  } else { div.textContent = text; }
+  msgContainer.appendChild(div);
+  scrollToBottom();
+  return div;
+}
+
+function onStreamStart() {
+  var typing = document.getElementById('typing');
+  if (typing) typing.remove();
+  currentAgentMsg = document.createElement('div');
+  currentAgentMsg.className = 'msg agent';
+  currentAgentMsg.innerHTML = '<div class="label">Agent</div><span class="text"></span>';
+  msgContainer.appendChild(currentAgentMsg);
+  scrollToBottom();
+}
+
+function onToken(token) {
+  if (!currentAgentMsg) onStreamStart();
+  fullResponse += token;
+  var chatText = fullResponse.replace(/\[SLIDE\][\s\S]*?\[\/SLIDE\]/g, '').trim();
+  currentAgentMsg.querySelector('.text').textContent = chatText || '...';
+  scrollToBottom();
+}
+
+function onDone() {
+  var typing = document.getElementById('typing');
+  if (typing) typing.remove();
+
+  var match = fullResponse.match(/\[SLIDE\]([\s\S]*?)\[\/SLIDE\]/);
+  if (match) {
+    slideCount++;
+    slideArea.innerHTML = match[1];
+    slideNum.textContent = 'Slide ' + slideCount;
+    var chatText = fullResponse.replace(/\[SLIDE\][\s\S]*?\[\/SLIDE\]/g, '').trim();
+    if (currentAgentMsg) {
+      currentAgentMsg.querySelector('.text').textContent = chatText || 'Slide updated ✓';
+    }
+  }
+
+  currentAgentMsg = null;
+  isStreaming = false;
+  fullResponse = '';
+  sendBtn.disabled = false;
+  inputEl.focus();
+}
+
+function onError(msg) {
+  var typing = document.getElementById('typing');
+  if (typing) typing.remove();
+  currentAgentMsg = null;
+  var div = document.createElement('div');
+  div.className = 'msg error';
+  div.textContent = msg;
+  msgContainer.appendChild(div);
+  isStreaming = false;
+  fullResponse = '';
+  sendBtn.disabled = false;
+  inputEl.focus();
+  scrollToBottom();
+}
+
+function scrollToBottom() { msgContainer.scrollTop = msgContainer.scrollHeight; }
+</script>
+</body></html>
