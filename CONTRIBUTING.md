@@ -141,6 +141,32 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - **Don't skip tests** — if tests exist for the code you changed, run them
 - **Don't modify `registry.json` by hand** — it's managed by the upgrade script
 
+## Genesis Packages
+
+Genesis packages are third-party GitHub repositories that follow the genesis registry format. They let any agent install extensions and skills beyond what the genesis template provides.
+
+### What makes a genesis package
+
+A GitHub repository is a genesis package if it contains:
+
+- A `.github/registry.json` declaring extensions and/or skills using the same format as the genesis template registry
+- The corresponding extension and/or skill directories at the paths declared in the registry
+
+For discoverability, add the `genesis-package` topic to the repository.
+
+### How packages work
+
+- Packages are installed via `packages.js` (the `packages` skill)
+- Installed items are tracked in both the `packages[]` array and the top-level `extensions`/`skills` in `registry.json`, with a `package` field indicating their origin
+- Template-owned items are authoritative — a package cannot overwrite an extension or skill that already exists from `ianphil/genesis` or another package
+- See `docs/packages.md` for the full spec
+
+### Contributing a package-related change
+
+- Changes to `packages.js` or `SKILL.md` follow the same branch and PR workflow as any other skill
+- New versions of the packages skill land on `frontier` first, same as extensions and skills
+- The `packages[]` array in the genesis template's `registry.json` should remain empty — the template is the source, not a consumer
+
 ## Release Channels
 
 Genesis publishes two release channels:
