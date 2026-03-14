@@ -170,8 +170,9 @@ Genesis publishes two release channels:
 2. Create a feature branch from `main`: `git checkout main && git checkout -b feature/graduate-<name>`
 3. Pull only the graduating item: `git checkout frontier -- .github/extensions/<name>/` (or `skills/`)
 4. Add the entry to `registry.json` and bump the version
-5. Commit, push, and open a PR against `main`
-6. After merge, rebase frontier on main (see below) — expect a conflict on `registry.json`; resolve by keeping frontier's extra items with main's new version number
+5. Update `README.md` — move the item from the frontier table to the main extensions table
+6. Commit, push, and open a PR against `main`
+7. After merge, rebase frontier on main (see below) — expect a conflict on `registry.json`; resolve by keeping frontier's extra items with main's new version number
 
 ### Branch management
 

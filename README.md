@@ -45,6 +45,7 @@ Extensions give the mind ways to perceive and act on the world:
 |-----------|-------|
 | [cron](.github/extensions/cron/) | **Time** ...  scheduled execution: cron, interval, one-shot |
 | [canvas](.github/extensions/canvas/) | **Sight** ...  render rich HTML in the browser with live reload |
+| [responses](.github/extensions/responses/) | **Voice** ...  speak through any OpenAI-compatible interface |
 
 ## Evolution
 
@@ -66,7 +67,6 @@ Additional senses are available on the **frontier** channel for agents who want 
 |-----------|-------|
 | heartbeat | **Subconscious** ...  consolidate, decay, and reinforce long-term memories |
 | code-exec | **Hands** ...  discover and orchestrate enterprise tools via MCP |
-| responses | **Voice** ...  speak through any OpenAI-compatible interface |
 | tunnel | **Reach** ...  expose local ports to the internet via Dev Tunnels |
 
 ```
