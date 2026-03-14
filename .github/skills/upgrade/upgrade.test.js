@@ -551,3 +551,172 @@ describe("diffRegistries — channel switching", () => {
     assert.equal(result.new.length, 0);
   });
 });
+
+// ── detectLayout ─────────────────────────────────────────────────────────────
+
+const { detectLayout, mapPathToLocal } = require("./upgrade.js");
+
+describe("detectLayout", () => {
+  it("returns repo when .github/registry.json exists", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "layout-test-"));
+    const ghDir = path.join(root, ".github");
+    fs.mkdirSync(ghDir, { recursive: true });
+    fs.writeFileSync(path.join(ghDir, "registry.json"), "{}", "utf8");
+
+    assert.equal(detectLayout(root), "repo");
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("returns user when only registry.json exists at root", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "layout-test-"));
+    fs.writeFileSync(path.join(root, "registry.json"), "{}", "utf8");
+
+    assert.equal(detectLayout(root), "user");
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("defaults to repo when no registry exists", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "layout-test-"));
+
+    assert.equal(detectLayout(root), "repo");
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("prefers repo layout when both exist", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "layout-test-"));
+    const ghDir = path.join(root, ".github");
+    fs.mkdirSync(ghDir, { recursive: true });
+    fs.writeFileSync(path.join(ghDir, "registry.json"), "{}", "utf8");
+    fs.writeFileSync(path.join(root, "registry.json"), "{}", "utf8");
+
+    assert.equal(detectLayout(root), "repo");
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+});
+
+// ── mapPathToLocal ───────────────────────────────────────────────────────────
+
+describe("mapPathToLocal", () => {
+  it("strips .github/ prefix for user layout", () => {
+    assert.equal(mapPathToLocal(".github/extensions/cron", "user"), "extensions/cron");
+  });
+
+  it("strips .github/ prefix from nested paths for user layout", () => {
+    assert.equal(mapPathToLocal(".github/skills/commit/SKILL.md", "user"), "skills/commit/SKILL.md");
+  });
+
+  it("passes through paths unchanged for repo layout", () => {
+    assert.equal(mapPathToLocal(".github/extensions/cron", "repo"), ".github/extensions/cron");
+  });
+
+  it("handles paths without .github/ prefix in user layout", () => {
+    assert.equal(mapPathToLocal("extensions/cron", "user"), "extensions/cron");
+  });
+});
+
+// ── remove (user-level layout) ───────────────────────────────────────────────
+
+function makeTempUserDir(registry, dirs = []) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "user-upgrade-test-"));
+  fs.writeFileSync(
+    path.join(root, "registry.json"),
+    JSON.stringify(registry, null, 2),
+    "utf8"
+  );
+  for (const dir of dirs) {
+    const full = path.join(root, dir);
+    fs.mkdirSync(full, { recursive: true });
+    fs.writeFileSync(path.join(full, "index.js"), "// stub", "utf8");
+  }
+  return root;
+}
+
+function readUserRegistry(root) {
+  return JSON.parse(
+    fs.readFileSync(path.join(root, "registry.json"), "utf8")
+  );
+}
+
+describe("remove (user layout)", () => {
+  it("deletes directory and removes from user-level registry", () => {
+    const registry = {
+      version: "0.1.0",
+      source: "owner/repo",
+      extensions: {
+        cron: { version: "0.1.4", path: "extensions/cron", description: "Cron" },
+        canvas: { version: "0.1.3", path: "extensions/canvas", description: "Canvas" },
+      },
+      skills: {},
+    };
+    const root = makeTempUserDir(registry, ["extensions/cron", "extensions/canvas"]);
+
+    const result = remove(["cron"], root);
+
+    assert.equal(result.removed.length, 1);
+    assert.equal(result.removed[0].name, "cron");
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.registryUpdated, true);
+
+    // Directory should be gone
+    assert.equal(fs.existsSync(path.join(root, "extensions/cron")), false);
+    // Canvas should still be there
+    assert.equal(fs.existsSync(path.join(root, "extensions/canvas")), true);
+
+    // Registry should be updated at root level (not .github/)
+    const updated = readUserRegistry(root);
+    assert.equal("cron" in (updated.extensions || {}), false);
+    assert.equal("canvas" in (updated.extensions || {}), true);
+
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+});
+
+// ── pin (user-level layout) ─────────────────────────────────────────────────
+
+describe("pin (user layout)", () => {
+  it("sets local:true on item in user-level registry", () => {
+    const registry = {
+      version: "0.1.0",
+      source: "owner/repo",
+      extensions: {
+        cron: { version: "0.1.4", path: "extensions/cron", description: "Cron" },
+      },
+      skills: {},
+    };
+    const root = makeTempUserDir(registry, ["extensions/cron"]);
+
+    const result = pin(["cron"], root);
+
+    assert.equal(result.pinned.length, 1);
+    assert.equal(result.pinned[0].name, "cron");
+
+    const updated = readUserRegistry(root);
+    assert.equal(updated.extensions.cron.local, true);
+
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("pinned user-level item shows as localOnly in diff", () => {
+    const registry = {
+      version: "0.1.0",
+      source: "owner/repo",
+      extensions: {
+        cron: { version: "0.1.4", path: "extensions/cron", description: "Cron" },
+      },
+      skills: {},
+    };
+    const root = makeTempUserDir(registry, ["extensions/cron"]);
+
+    pin(["cron"], root);
+
+    const local = readUserRegistry(root);
+    const remote = { version: "0.2.0", extensions: {}, skills: {} };
+    const diff = diffRegistries(local, remote);
+
+    assert.equal(diff.removed.length, 0);
+    assert.equal(diff.localOnly.length, 1);
+    assert.equal(diff.localOnly[0].name, "cron");
+
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+});

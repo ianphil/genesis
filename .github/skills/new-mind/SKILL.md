@@ -15,6 +15,38 @@ Bootstrap a new AI agent mind from this parent mind's templates.
 
 ---
 
+## Phase 0: Capture Parent Location
+
+Before starting the interview, capture the current working directory as `{PARENT_MIND}`.
+This is the root of the mind you're running from — the source for templates, skills, and extensions.
+
+On Windows (PowerShell):
+```powershell
+$PARENT_MIND = (Get-Location).Path
+```
+
+On macOS/Linux:
+```bash
+PARENT_MIND=$(pwd)
+```
+
+Verify the parent mind has the new-mind skill templates:
+
+On Windows (PowerShell):
+```powershell
+Test-Path "$PARENT_MIND\.github\skills\new-mind\templates"
+```
+
+On macOS/Linux:
+```bash
+test -d "$PARENT_MIND/.github/skills/new-mind/templates" || echo "ERROR: Run this skill from a mind repo root"
+```
+
+Hold `{PARENT_MIND}` for all subsequent phases — template reads, skill copies, and extension
+copies all reference it.
+
+---
+
 ## Phase 1: Mind Type
 
 Ask:
@@ -110,7 +142,7 @@ Hold this research in context — it shapes SOUL.md, the agent file, and all gen
 
 Set `{MIND_DIR}` = `{MIND_PATH}` (repo mind) or `{MIND_HOME}` (user mind).
 
-Read templates from `.github/skills/new-mind/templates/`. These are the source of truth
+Read templates from `{PARENT_MIND}/.github/skills/new-mind/templates/`. These are the source of truth
 for all generated content. Strip Design Notes from everything generated.
 
 ### 6.1 Create the directory and git init
@@ -252,8 +284,6 @@ cp -r {PARENT_MIND}/.github/extensions/cron {MIND_DIR}/.github/extensions/cron
 cp -r {PARENT_MIND}/.github/extensions/canvas {MIND_DIR}/.github/extensions/canvas
 ```
 
-Where `{PARENT_MIND}` is the root of this mind's repository.
-
 **For user minds**, skip this step. All extensions are installed to `~/.copilot/extensions/` in Phase 7.
 
 ### 6.9 Generate registry.json
@@ -360,7 +390,7 @@ For each skill, check if it already exists. If missing, install from the parent 
 If present, skip and log.
 
 **Commit skill** — check `~/.copilot/skills/commit/SKILL.md`:
-- If missing: read `templates/commit-user-template.md`, write to `~/.copilot/skills/commit/SKILL.md`
+- If missing: read `{PARENT_MIND}/.github/skills/new-mind/templates/commit-user-template.md`, write to `~/.copilot/skills/commit/SKILL.md`
 - The commit skill has NO hardcoded paths — it references `MIND_HOME` from session context
 
 **Daily report** — check `~/.copilot/skills/daily-report/SKILL.md`:
