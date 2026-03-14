@@ -23,8 +23,17 @@
 
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+function expandTilde(p) {
+  if (p === "~") return os.homedir();
+  if (p.startsWith("~/") || p.startsWith("~\\")) {
+    return path.join(os.homedir(), p.slice(2));
+  }
+  return p;
+}
 
 function copyDirRecursive(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
@@ -752,7 +761,17 @@ function installSharedResources(parentMind, userCopilotDir) {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 function createMind(config) {
-  const { type, mindDir, agentName, parentMind } = config;
+  // Expand tilde in all path fields before use
+  const mindDir = config.mindDir ? expandTilde(config.mindDir) : config.mindDir;
+  const parentMind = config.parentMind ? expandTilde(config.parentMind) : config.parentMind;
+  const agentName = config.agentName;
+  const type = config.type;
+  const expandedConfig = {
+    ...config,
+    mindDir,
+    parentMind,
+    userCopilotDir: config.userCopilotDir ? expandTilde(config.userCopilotDir) : undefined,
+  };
   const result = { files: [], warnings: [] };
 
   // Validate required fields
@@ -780,35 +799,35 @@ function createMind(config) {
   result.files.push(...dirs.map((d) => ({ path: d, type: "directory" })));
 
   // 2. Generate SOUL.md
-  const soulContent = generateSoul(config);
+  const soulContent = generateSoul(expandedConfig);
   fs.writeFileSync(path.join(mindDir, "SOUL.md"), soulContent);
   result.files.push({ path: "SOUL.md", type: "file" });
 
   // 3. Generate agent file
   if (type === "repo") {
-    const agentContent = generateRepoAgentFile(config);
+    const agentContent = generateRepoAgentFile(expandedConfig);
     const agentPath = path.join(mindDir, ".github", "agents", `${agentName}.agent.md`);
     fs.writeFileSync(agentPath, agentContent);
     result.files.push({ path: `.github/agents/${agentName}.agent.md`, type: "file" });
   } else {
-    const agentContent = generateUserAgentFile(config);
-    const agentPath = path.join(config.userCopilotDir, "agents", `${agentName}.agent.md`);
-    fs.mkdirSync(path.join(config.userCopilotDir, "agents"), { recursive: true });
+    const agentContent = generateUserAgentFile(expandedConfig);
+    const agentPath = path.join(expandedConfig.userCopilotDir, "agents", `${agentName}.agent.md`);
+    fs.mkdirSync(path.join(expandedConfig.userCopilotDir, "agents"), { recursive: true });
     fs.writeFileSync(agentPath, agentContent);
     result.files.push({ path: `~/.copilot/agents/${agentName}.agent.md`, type: "file" });
   }
 
   // 4. Generate copilot-instructions.md (repo only)
   if (type === "repo") {
-    const ciContent = generateCopilotInstructions(config);
+    const ciContent = generateCopilotInstructions(expandedConfig);
     fs.writeFileSync(path.join(mindDir, ".github", "copilot-instructions.md"), ciContent);
     result.files.push({ path: ".github/copilot-instructions.md", type: "file" });
   }
 
   // 5. Seed working memory
-  fs.writeFileSync(path.join(mindDir, ".working-memory", "memory.md"), generateMemory(config));
+  fs.writeFileSync(path.join(mindDir, ".working-memory", "memory.md"), generateMemory(expandedConfig));
   fs.writeFileSync(path.join(mindDir, ".working-memory", "rules.md"), generateRules());
-  fs.writeFileSync(path.join(mindDir, ".working-memory", "log.md"), generateLog(config));
+  fs.writeFileSync(path.join(mindDir, ".working-memory", "log.md"), generateLog(expandedConfig));
   result.files.push(
     { path: ".working-memory/memory.md", type: "file" },
     { path: ".working-memory/rules.md", type: "file" },
@@ -836,12 +855,12 @@ function createMind(config) {
 
   // 8. Install shared resources (user only)
   if (type === "user") {
-    const sharedLog = installSharedResources(parentMind, config.userCopilotDir);
+    const sharedLog = installSharedResources(parentMind, expandedConfig.userCopilotDir);
     result.sharedResources = sharedLog;
   }
 
   // 9. Generate mind-index.md
-  const indexContent = generateMindIndex(config);
+  const indexContent = generateMindIndex(expandedConfig);
   fs.writeFileSync(path.join(mindDir, "mind-index.md"), indexContent);
   result.files.push({ path: "mind-index.md", type: "file" });
 
@@ -868,6 +887,7 @@ module.exports = {
   copyDirRecursive,
   mapPathForLayout,
   readConfigDir,
+  expandTilde,
   COMMON_DIRS,
   REPO_DIRS,
   USER_DIRS,

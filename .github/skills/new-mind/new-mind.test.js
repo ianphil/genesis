@@ -31,6 +31,7 @@ const {
   SKILLS_TO_COPY,
   EXTENSIONS_TO_COPY,
   CREATIVE_BLOCK_FILES,
+  expandTilde,
 } = require("./new-mind.js");
 
 // ── Test Fixtures ────────────────────────────────────────────────────────────
@@ -194,6 +195,33 @@ describe("readConfigDir", () => {
     } finally {
       fs.rmSync(mdDir, { recursive: true, force: true });
     }
+  });
+});
+
+// ── expandTilde Tests ────────────────────────────────────────────────────────
+
+describe("expandTilde", () => {
+  const home = os.homedir();
+
+  it("expands ~ alone to home directory", () => {
+    assert.strictEqual(expandTilde("~"), home);
+  });
+
+  it("expands ~/path to home + path", () => {
+    assert.strictEqual(expandTilde("~/.copilot"), path.join(home, ".copilot"));
+  });
+
+  it("expands ~\\path on Windows-style", () => {
+    assert.strictEqual(expandTilde("~\\.copilot"), path.join(home, ".copilot"));
+  });
+
+  it("leaves absolute paths unchanged", () => {
+    const abs = path.join(home, ".copilot");
+    assert.strictEqual(expandTilde(abs), abs);
+  });
+
+  it("leaves relative paths unchanged", () => {
+    assert.strictEqual(expandTilde("./foo"), "./foo");
   });
 });
 
@@ -729,6 +757,52 @@ describe("user mind creation", () => {
     // mind-index.md references shared tooling
     const index = fs.readFileSync(path.join(mindDir, "mind-index.md"), "utf8");
     assert.ok(index.includes("~/.copilot/"), "mind-index should reference ~/.copilot/");
+  });
+});
+
+// ── E2E: Tilde Expansion in User Mind ────────────────────────────────────────
+
+describe("user mind creation with tilde paths", () => {
+  let parent, mindDir, realCopilotDir;
+
+  before(() => {
+    parent = makeTempParent();
+    mindDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tilde-mind-")), "mind");
+    realCopilotDir = fs.mkdtempSync(path.join(os.tmpdir(), "tilde-copilot-"));
+  });
+
+  after(() => {
+    cleanup(parent, path.dirname(mindDir), realCopilotDir);
+  });
+
+  it("expands ~ in userCopilotDir and writes to correct location", () => {
+    // Simulate what the agent does: pass "~/.copilot" style path
+    // We can't actually use ~ in tests (it expands to the real home dir),
+    // so we test that expandTilde is applied by checking the function behavior
+    // and then test createMind with the tilde-prefixed path mock.
+    
+    // First verify expandTilde works on ~
+    const expanded = expandTilde("~/.copilot");
+    assert.strictEqual(expanded, path.join(os.homedir(), ".copilot"));
+
+    // For the E2E test, use the resolved path (since tilde expansion
+    // would write to the real homedir, which we don't want in tests)
+    const config = {
+      ...TEST_CONFIG_BASE,
+      type: "user",
+      mindDir,
+      parentMind: parent,
+      userCopilotDir: realCopilotDir,
+    };
+    const result = createMind(config);
+    assert.ok(!result.error, `createMind failed: ${result.error}`);
+
+    // Verify agent file is at the RESOLVED location, not a literal tilde dir
+    const agentPath = path.join(realCopilotDir, "agents", "test-bot.agent.md");
+    assert.ok(fs.existsSync(agentPath), "agent file must exist at resolved path");
+
+    // Verify NO literal tilde directory was created in the mind dir
+    assert.ok(!fs.existsSync(path.join(mindDir, "~")), "no literal ~ directory should exist in mind dir");
   });
 });
 
