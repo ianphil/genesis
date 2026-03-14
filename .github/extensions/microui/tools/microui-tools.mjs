@@ -252,10 +252,12 @@ function buildArgs(params) {
   if (params.width)     { args.push("--width",  String(params.width)); }
   if (params.height)    { args.push("--height", String(params.height)); }
   if (params.title)     { args.push("--title",  params.title); }
-  if (params.frameless) { args.push("--frameless"); }
-  if (params.floating)  { args.push("--floating"); }
-  if (params.hidden)    { args.push("--hidden"); }
-  if (params.autoClose) { args.push("--auto-close"); }
+  if (params.frameless)   { args.push("--frameless"); }
+  if (params.floating)    { args.push("--floating"); }
+  if (params.hidden)      { args.push("--hidden"); }
+  if (params.autoClose)   { args.push("--auto-close"); }
+  if (params.fullscreen)  { args.push("--fullscreen"); }
+  if (params.maximized)   { args.push("--maximized"); }
   return args;
 }
 
@@ -326,6 +328,14 @@ export function createMicroUITools() {
             type: "boolean",
             description: "Close the window automatically after the first message from the page.",
           },
+          fullscreen: {
+            type: "boolean",
+            description: "Open the window in true fullscreen mode (covers taskbar).",
+          },
+          maximized: {
+            type: "boolean",
+            description: "Open the window maximized (fills screen, respects taskbar).",
+          },
         },
         required: ["name", "html"],
       },
@@ -347,8 +357,10 @@ export function createMicroUITools() {
           height:    args.height,
           frameless: args.frameless,
           floating:  args.floating,
-          hidden:    args.hidden,
-          autoClose: args.auto_close,
+          hidden:     args.hidden,
+          autoClose:  args.auto_close,
+          fullscreen: args.fullscreen,
+          maximized:  args.maximized,
         });
 
         await delay(500);
@@ -495,7 +507,9 @@ function wrapFragment(html, title) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body { font-family: system-ui, sans-serif; }
   </style>
 </head>
 <body>

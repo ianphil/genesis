@@ -69,6 +69,8 @@ public record CliOptions
     public bool Floating { get; init; } = false;
     public bool Hidden { get; init; } = false;
     public bool AutoClose { get; init; } = false;
+    public bool Fullscreen { get; init; } = false;
+    public bool Maximized { get; init; } = false;
 }
 
 // ---------- JSON source-generation context (for NativeAOT / trimming) ----------

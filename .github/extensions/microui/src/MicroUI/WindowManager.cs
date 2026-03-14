@@ -24,11 +24,13 @@ public sealed class WindowManager : IDisposable
         _window = new Photino.NET.PhotinoWindow()
             .SetTitle(opts.Title)
             .SetSize(opts.Width, opts.Height)
-            .SetUseOsDefaultLocation(true)
+            .SetUseOsDefaultLocation(!opts.Fullscreen && !opts.Maximized)
             .SetResizable(true)
             .SetChromeless(opts.Frameless)
             .SetTopMost(opts.Floating)
-            .SetMinimized(opts.Hidden);
+            .SetMinimized(opts.Hidden)
+            .SetFullScreen(opts.Fullscreen)
+            .SetMaximized(opts.Maximized);
 
         if (_isUrlMode)
         {

@@ -126,6 +126,7 @@ class Program
         string title = "Genesis";
         string? url = null;
         bool frameless = false, floating = false, hidden = false, autoClose = false;
+        bool fullscreen = false, maximized = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -139,6 +140,8 @@ class Program
                 case "--floating": floating = true; break;
                 case "--hidden": hidden = true; break;
                 case "--auto-close": autoClose = true; break;
+                case "--fullscreen": fullscreen = true; break;
+                case "--maximized": maximized = true; break;
             }
         }
 
@@ -152,6 +155,8 @@ class Program
             Floating = floating,
             Hidden = hidden,
             AutoClose = autoClose,
+            Fullscreen = fullscreen,
+            Maximized = maximized,
         };
     }
 }
