@@ -97,8 +97,8 @@ public sealed class WindowManager : IDisposable
                 return;
             }
 
-            // Forward as a host message event
-            var evt = new MessageEvent { Data = JsonSerializer.Deserialize<object>(message, MicroUIJsonContext.Default.Object) };
+            // Forward as a host message event — parse as raw JsonElement to preserve any shape
+            var evt = new MessageEvent { Data = doc.RootElement.Clone() };
             _emitEvent(JsonSerializer.Serialize(evt, MicroUIJsonContext.Default.MessageEvent));
 
             if (_opts.AutoClose)

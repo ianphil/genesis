@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace MicroUI;
@@ -60,7 +61,7 @@ public record MessageEvent
     public string Type { get; } = "message";
 
     [JsonPropertyName("data")]
-    public object? Data { get; init; }
+    public JsonElement? Data { get; init; }
 }
 
 /// <summary>Fired when the window closes.</summary>
@@ -93,6 +94,6 @@ public record CliOptions
 [JsonSerializable(typeof(MessageEvent))]
 [JsonSerializable(typeof(ClosedEvent))]
 [JsonSerializable(typeof(ScreenInfo))]
-[JsonSerializable(typeof(object))]
+[JsonSerializable(typeof(JsonElement))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 public partial class MicroUIJsonContext : JsonSerializerContext { }
