@@ -138,13 +138,16 @@ Using `.genesis-temp/working-memory-example.md` and `.genesis-temp/rules-example
 
 ---
 
-## Step 7: Clean Up
+## Step 7: Move Templates
+
+Templates are consumed but not discarded — they move into the `new-mind` skill so the
+parent mind can bootstrap new minds later.
 
 ```bash
-rm -rf .genesis-temp
+mkdir -p .github/skills/new-mind/templates
+mv .genesis-temp/* .github/skills/new-mind/templates/
+rmdir .genesis-temp
 ```
-
-Templates have been consumed — remove them.
 
 ---
 
