@@ -19,35 +19,43 @@ Check the genesis template for new or updated extensions and skills, then instal
 
 ## Channels
 
-Genesis publishes two release channels:
-
-- **main** — stable, minimal set (cron, canvas, commit, daily-report, upgrade)
-- **frontier** — superset of main with experimental extensions and skills
+Genesis supports release channels for repos that publish multiple branches. The channel determines which branch's registry is used for `check` and `install`.
 
 ### Switch channels
 
 ```bash
-node .github/skills/upgrade/upgrade.js channel frontier
+node .github/skills/upgrade/upgrade.js channel <name>
 ```
 
 This:
-- Sets `"channel": "frontier"` in the local registry
-- Fetches the remote registry from the `frontier` branch
+- Sets `"channel": "<name>"` in the local registry
+- Fetches the remote registry from the `<name>` branch
 - Returns a diff showing what items would be added or removed
-
-The output is the same format as `check` — present it to the user with the same UX. New items need `install`, removed items need `remove` or `pin`.
-
-To switch back:
-
-```bash
-node .github/skills/upgrade/upgrade.js channel main
-```
-
-Items that only exist on frontier will appear as `removed`. The user can accept the removal or pin them to keep locally.
 
 ### Already on target channel
 
 If the agent is already on the requested channel, the output includes `"changed": false` — no action needed.
+
+## Migrate (Channel → Package)
+
+When a release channel is being retired in favor of a package repo, use `migrate` to rewrite the registry:
+
+```bash
+node .github/skills/upgrade/upgrade.js migrate --source ianphil/genesis-frontier
+```
+
+This:
+- Diffs local registry against the target channel's remote (default: `main`)
+- Items not in the template get a `package` field assigned to the `--source`
+- Populates the `packages[]` array with an installed manifest
+- Switches channel to the target (default: `main`)
+- No files move, no downloads — pure registry rewrite
+
+Options:
+- `--source <owner/repo>` (required) — the package repo to assign non-template items to
+- `--channel <name>` (optional, default: `main`) — the target channel to switch to
+
+After migration, `upgrade` pulls from the target channel and non-template items are managed by the packages skill.
 
 ## Phase 1: Check for Updates
 
