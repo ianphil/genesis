@@ -8,6 +8,8 @@
 //   node upgrade.js remove name1,name2  — remove selected items from local
 //   node upgrade.js pin name1,name2     — pin items to prevent removal
 //   node upgrade.js channel <name>      — switch release channel (e.g. main, frontier)
+//   node upgrade.js migrate --source <owner/repo> [--channel <name>]
+//                                        — rewrite registry: assign non-template items to a package source
 
 const { execSync } = require("child_process");
 const fs = require("fs");
@@ -44,12 +46,35 @@ function findRepoRoot() {
     if (fs.existsSync(path.join(dir, ".github", "registry.json"))) return dir;
     dir = path.dirname(dir);
   }
+  // User-level layout: registry.json at CWD (e.g. ~/.copilot/)
+  if (fs.existsSync(path.join(process.cwd(), "registry.json"))) {
+    return process.cwd();
+  }
   // Fallback: cwd
   return process.cwd();
 }
 
+function detectLayout(root) {
+  if (fs.existsSync(path.join(root, ".github", "registry.json"))) return "repo";
+  if (fs.existsSync(path.join(root, "registry.json"))) return "user";
+  return "repo";
+}
+
+function registryPath(root) {
+  return detectLayout(root) === "user"
+    ? path.join(root, "registry.json")
+    : path.join(root, ".github", "registry.json");
+}
+
+function mapPathToLocal(remotePath, layout) {
+  if (layout === "user") {
+    return remotePath.replace(/^\.github\//, "");
+  }
+  return remotePath;
+}
+
 function readLocalRegistry(root) {
-  const p = path.join(root, ".github", "registry.json");
+  const p = registryPath(root);
   if (!fs.existsSync(p)) {
     return { version: "0.0.0", source: "", extensions: {}, skills: {} };
   }
@@ -57,7 +82,7 @@ function readLocalRegistry(root) {
 }
 
 function writeLocalRegistry(root, registry) {
-  const p = path.join(root, ".github", "registry.json");
+  const p = registryPath(root);
   fs.writeFileSync(p, JSON.stringify(registry, null, 2) + "\n", "utf8");
 }
 
@@ -91,6 +116,7 @@ function diffRegistries(local, remote) {
     renamed: [],
     removed: [],
     localOnly: [],
+    promoted: [],
   };
 
   // Build rename lookup: oldName → newName, newName → oldName
@@ -116,8 +142,14 @@ function diffRegistries(local, remote) {
       };
 
       if (name in localItems) {
-        // Direct match — normal version comparison
-        if (compareSemver(info.version, localItems[name].version) > 0) {
+        if (localItems[name].package) {
+          // Template now owns this item — it was previously installed via a package
+          result.promoted.push({
+            ...item,
+            package: localItems[name].package,
+            localVersion: localItems[name].version,
+          });
+        } else if (compareSemver(info.version, localItems[name].version) > 0) {
           result.updated.push({
             ...item,
             localVersion: localItems[name].version,
@@ -159,6 +191,9 @@ function diffRegistries(local, remote) {
         // Pinned items go to localOnly; unpinned go to removed
         if (info.local) {
           result.localOnly.push(item);
+        } else if (info.package) {
+          // Package-installed items not in template are kept (managed by packages skill)
+          result.localOnly.push(item);
         } else {
           result.removed.push(item);
         }
@@ -177,7 +212,7 @@ function check() {
 
   if (!local.source) {
     console.error(
-      JSON.stringify({ error: "No source configured in .github/registry.json" })
+      JSON.stringify({ error: "No source configured in local registry" })
     );
     process.exit(1);
   }
@@ -202,6 +237,7 @@ function check() {
 
 function install(names) {
   const root = findRepoRoot();
+  const layout = detectLayout(root);
   const local = readLocalRegistry(root);
   const { owner, repo } = parseSource(local.source);
   const branch = resolveChannel(local);
@@ -226,6 +262,7 @@ function install(names) {
   const result = {
     installed: [],
     updated: [],
+    promoted: [],
     errors: [],
     registryUpdated: false,
   };
@@ -251,7 +288,8 @@ function install(names) {
       if (!requestedNames.has(name)) continue;
 
       const isNew = !(name in localItems);
-      const itemPath = info.path; // e.g. ".github/extensions/cron"
+      const itemPath = info.path; // remote path for tree matching (e.g. ".github/extensions/cron")
+      const localItemPath = mapPathToLocal(itemPath, layout);
 
       try {
         // Find all files under this item's path in the tree
@@ -275,7 +313,7 @@ function install(names) {
         let fileCount = 0;
         for (const file of files) {
           const content = ghBlob(owner, repo, file.sha);
-          const localPath = path.join(root, file.path);
+          const localPath = path.join(root, mapPathToLocal(file.path, layout));
           const dir = path.dirname(localPath);
 
           fs.mkdirSync(dir, { recursive: true });
@@ -284,12 +322,12 @@ function install(names) {
         }
 
         // Run npm install if package.json exists
-        const pkgPath = path.join(root, itemPath, "package.json");
+        const pkgPath = path.join(root, localItemPath, "package.json");
         let npmInstalled = false;
         if (fs.existsSync(pkgPath)) {
           try {
             execSync("npm install --production", {
-              cwd: path.join(root, itemPath),
+              cwd: path.join(root, localItemPath),
               encoding: "utf8",
               stdio: "pipe",
             });
@@ -302,11 +340,12 @@ function install(names) {
           }
         }
 
-        // Update local registry
+        // Update local registry — remove package field if promoting
         if (!local[type]) local[type] = {};
+        const wasPackage = localItems[name] && localItems[name].package;
         local[type][name] = {
           version: info.version,
-          path: info.path,
+          path: localItemPath,
           description: info.description,
         };
 
@@ -317,6 +356,37 @@ function install(names) {
           files: fileCount,
           npmInstalled,
         };
+
+        // Handle promotion — clean up package tracking
+        if (wasPackage) {
+          const pkgSource = localItems[name].package;
+          entry.promotedFrom = pkgSource;
+          if (Array.isArray(local.packages)) {
+            for (const pkg of local.packages) {
+              if (pkg.source === pkgSource && pkg.installed) {
+                const pkgType = pkg.installed[type];
+                if (pkgType && pkgType[name]) {
+                  delete pkgType[name];
+                }
+              }
+            }
+            // Remove empty package entries
+            local.packages = local.packages.filter((pkg) => {
+              if (!pkg.installed) return false;
+              const exts = Object.keys(pkg.installed.extensions || {});
+              const skills = Object.keys(pkg.installed.skills || {});
+              return exts.length > 0 || skills.length > 0;
+            });
+          }
+          result.promoted.push(entry);
+        } else if (isNew) {
+          result.installed.push(entry);
+        } else {
+          result.updated.push({
+            ...entry,
+            from: localItems[name].version,
+          });
+        }
 
         // Handle rename — clean up old directory and registry entry
         const oldName = reverseRenames[name];
@@ -352,7 +422,7 @@ function install(names) {
   }
 
   // Update registry version and write
-  if (result.installed.length > 0 || result.updated.length > 0) {
+  if (result.installed.length > 0 || result.updated.length > 0 || result.promoted.length > 0) {
     local.version = remote.version;
     writeLocalRegistry(root, local);
     result.registryUpdated = true;
@@ -509,7 +579,7 @@ function channel(name) {
 
   if (!local.source) {
     console.error(
-      JSON.stringify({ error: "No source configured in .github/registry.json" })
+      JSON.stringify({ error: "No source configured in local registry" })
     );
     process.exit(1);
   }
@@ -561,9 +631,112 @@ function channel(name) {
   console.log(JSON.stringify(diff, null, 2));
 }
 
+// ── Migrate command ──────────────────────────────────────────────────────────
+
+function migrateRegistry(local, remote, source) {
+  const migrated = [];
+  const skipped = [];
+
+  // For each local item NOT in the target channel's registry, assign it to the package source
+  for (const type of ["extensions", "skills"]) {
+    const remoteItems = remote[type] || {};
+    const localItems = local[type] || {};
+
+    for (const [name, info] of Object.entries(localItems)) {
+      if (name in remoteItems) {
+        skipped.push({ name, type: type === "extensions" ? "extension" : "skill", reason: "in_template" });
+        continue;
+      }
+      if (info.local) {
+        skipped.push({ name, type: type === "extensions" ? "extension" : "skill", reason: "pinned" });
+        continue;
+      }
+      if (info.package) {
+        skipped.push({ name, type: type === "extensions" ? "extension" : "skill", reason: "already_package" });
+        continue;
+      }
+
+      // Assign to package
+      local[type][name] = { ...info, package: source };
+      migrated.push({
+        name,
+        type: type === "extensions" ? "extension" : "skill",
+        version: info.version,
+      });
+    }
+  }
+
+  // Build the packages[] entry for migrated items
+  if (migrated.length > 0) {
+    if (!local.packages) local.packages = [];
+
+    let pkgEntry = local.packages.find((p) => p.source === source);
+    if (!pkgEntry) {
+      pkgEntry = { source, ref: "main", installed: { extensions: {}, skills: {} } };
+      local.packages.push(pkgEntry);
+    }
+    if (!pkgEntry.installed) pkgEntry.installed = { extensions: {}, skills: {} };
+
+    for (const item of migrated) {
+      const type = item.type === "extension" ? "extensions" : "skills";
+      const info = local[type][item.name];
+      pkgEntry.installed[type][item.name] = {
+        version: info.version,
+        path: info.path,
+        description: info.description,
+      };
+    }
+  }
+
+  return { migrated, skipped };
+}
+
+function migrate(source, targetChannel) {
+  const root = findRepoRoot();
+  const local = readLocalRegistry(root);
+  const currentChannel = resolveChannel(local);
+
+  if (!local.source) {
+    return { error: "No source configured in local registry" };
+  }
+
+  const { owner, repo } = parseSource(local.source);
+
+  let remote;
+  try {
+    const remoteRaw = gh(
+      `/repos/${owner}/${repo}/contents/.github/registry.json?ref=${targetChannel}`
+    );
+    remote = JSON.parse(
+      Buffer.from(remoteRaw.content, "base64").toString("utf8")
+    );
+  } catch (e) {
+    return {
+      error: `Failed to fetch registry from channel "${targetChannel}". ${e.message.slice(0, 200)}`,
+    };
+  }
+
+  const { migrated, skipped } = migrateRegistry(local, remote, source);
+
+  // Switch channel to target
+  local.channel = targetChannel;
+  delete local.branch;
+
+  writeLocalRegistry(root, local);
+
+  return {
+    source,
+    targetChannel,
+    previousChannel: currentChannel,
+    migrated,
+    skipped,
+    registryUpdated: true,
+  };
+}
+
 // ── Exports (for testing) ────────────────────────────────────────────────────
 
-module.exports = { compareSemver, diffRegistries, remove, pin, resolveChannel };
+module.exports = { compareSemver, diffRegistries, remove, pin, resolveChannel, detectLayout, mapPathToLocal, migrate, migrateRegistry };
 
 // ── CLI entry ────────────────────────────────────────────────────────────────
 
@@ -618,10 +791,32 @@ if (require.main === module) {
       }
       channel(args[0].trim());
       break;
+    case "migrate": {
+      // Parse --source and --channel flags
+      let source = null;
+      let targetChannel = "main";
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === "--source" && args[i + 1]) {
+          source = args[++i].trim();
+        } else if (args[i] === "--channel" && args[i + 1]) {
+          targetChannel = args[++i].trim();
+        }
+      }
+      if (!source) {
+        console.error(
+          JSON.stringify({
+            error: 'Usage: node upgrade.js migrate --source <owner/repo> [--channel <name>]',
+          })
+        );
+        process.exit(1);
+      }
+      console.log(JSON.stringify(migrate(source, targetChannel), null, 2));
+      break;
+    }
     default:
       console.error(
         JSON.stringify({
-          error: `Unknown command: ${command}. Use "check", "install", "remove", "pin", or "channel".`,
+          error: `Unknown command: ${command}. Use "check", "install", "remove", "pin", "channel", or "migrate".`,
         })
       );
       process.exit(1);

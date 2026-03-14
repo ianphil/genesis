@@ -1,5 +1,5 @@
 {
-  "version": "0.15.0",
+  "version": "0.16.0",
   "source": "ianphil/genesis",
   "channel": "main",
   "extensions": {
@@ -31,9 +31,9 @@
       "description": "Morning briefing — ADO, Teams, calendar, email, mind next-actions"
     },
     "upgrade": {
-      "version": "0.4.0",
+      "version": "0.5.0",
       "path": ".github/skills/upgrade",
-      "description": "Pull new extensions and skills from the genesis template registry"
+      "description": "Pull new extensions and skills from the genesis template registry; migrate channel-based registries to package-based"
     },
     "packages": {
       "version": "0.1.0",
