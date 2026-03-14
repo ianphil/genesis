@@ -1,0 +1,12 @@
+{
+  "name": "myelin-extension",
+  "version": "0.6.0",
+  "private": true,
+  "description": "Myelin knowledge graph extension for Copilot CLI",
+  "dependencies": {
+    "better-sqlite3": "^11.9.1",
+    "sqlite-vec": "^0.1.6-alpha.2",
+    "onnxruntime-node": "^1.21.0",
+    "@huggingface/transformers": "^3.4.1"
+  }
+}

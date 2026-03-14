@@ -32,6 +32,11 @@
       "version": "0.1.0",
       "path": ".github/extensions/tunnel",
       "description": "Expose local ports over the internet via Microsoft Dev Tunnels with tenant or anonymous access"
+    },
+    "myelin": {
+      "version": "0.6.0",
+      "path": ".github/extensions/myelin",
+      "description": "Brain-inspired knowledge graph memory — semantic search, NER extraction, and consolidation"
     }
   },
   "skills": {
