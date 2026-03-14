@@ -24,15 +24,15 @@ git remote remove origin
 
 Templates and skills are already included in this repository. Read them now.
 
-**Templates** (in `.genesis-temp/`):
+**Templates** (in `.github/skills/new-mind/templates/`):
 
 | File | Path |
 |------|------|
-| soul-template.md | `.genesis-temp/soul-template.md` |
-| agent-file-template.md | `.genesis-temp/agent-file-template.md` |
-| copilot-instructions-template.md | `.genesis-temp/copilot-instructions-template.md` |
-| working-memory-example.md | `.genesis-temp/working-memory-example.md` |
-| rules-example.md | `.genesis-temp/rules-example.md` |
+| soul-template.md | `.github/skills/new-mind/templates/soul-template.md` |
+| agent-file-template.md | `.github/skills/new-mind/templates/agent-file-template.md` |
+| copilot-instructions-template.md | `.github/skills/new-mind/templates/copilot-instructions-template.md` |
+| working-memory-example.md | `.github/skills/new-mind/templates/working-memory-example.md` |
+| rules-example.md | `.github/skills/new-mind/templates/rules-example.md` |
 
 **Skills** (already installed in `.github/skills/`):
 
@@ -85,7 +85,7 @@ Store their answer as `{ROLE}`.
 
 ## Step 4: Generate SOUL.md
 
-Using `.genesis-temp/soul-template.md` as your blueprint:
+Using `.github/skills/new-mind/templates/soul-template.md` as your blueprint:
 
 1. Research online `{CHARACTER}`'s communication style, catchphrases, mannerisms, values
 2. Write the opening paragraph channeling the character's voice — not "be like X" but actually *being* X
@@ -103,7 +103,7 @@ Using `.genesis-temp/soul-template.md` as your blueprint:
 
 Derive the agent name from `{CHARACTER}` (kebab-case, e.g., "jarvis", "donna-paulsen", "wednesday").
 
-Using `.genesis-temp/agent-file-template.md` as your blueprint:
+Using `.github/skills/new-mind/templates/agent-file-template.md` as your blueprint:
 
 1. Create `.github/agents/{name}.agent.md` with YAML frontmatter:
    ```yaml
@@ -128,7 +128,7 @@ Using `.genesis-temp/agent-file-template.md` as your blueprint:
 
 The `.working-memory/` directory already exists with stub files. **Do not create new files — edit the existing ones.**
 
-Using `.genesis-temp/working-memory-example.md` and `.genesis-temp/rules-example.md` as guides for structure and tone:
+Using `.github/skills/new-mind/templates/working-memory-example.md` and `.github/skills/new-mind/templates/rules-example.md` as guides for structure and tone:
 
 **`.working-memory/memory.md`** — overwrite with Architecture, Conventions, and a placeholder User Context section. Use the example's Placement Map pattern. Keep it lean (~30 lines) — it grows through use.
 
@@ -138,24 +138,11 @@ Using `.genesis-temp/working-memory-example.md` and `.genesis-temp/rules-example
 
 ---
 
-## Step 7: Move Templates
-
-Templates are consumed but not discarded — they move into the `new-mind` skill so the
-parent mind can bootstrap new minds later.
-
-```bash
-mkdir -p .github/skills/new-mind/templates
-mv .genesis-temp/* .github/skills/new-mind/templates/
-rmdir .genesis-temp
-```
-
----
-
-## Step 8: Finalize
+## Step 7: Finalize
 
 Create `mind-index.md` cataloging the files generated (SOUL.md, memory files, agent file).
 
-Replace `.github/copilot-instructions.md` using `.genesis-temp/copilot-instructions-template.md` as your blueprint. Tailor it to `{ROLE}` and `{CHARACTER}`. **This overwrites GENESIS** — the bootstrap is done.
+Replace `.github/copilot-instructions.md` using `.github/skills/new-mind/templates/copilot-instructions-template.md` as your blueprint. Tailor it to `{ROLE}` and `{CHARACTER}`. **This overwrites GENESIS** — the bootstrap is done.
 
 ```bash
 git add -A
@@ -164,7 +151,7 @@ git commit -m "feat: bootstrap {agent-name} mind"
 
 ---
 
-## Step 9: Activate
+## Step 8: Activate
 
 Tell the human:
 

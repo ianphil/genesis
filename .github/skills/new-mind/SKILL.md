@@ -110,15 +110,8 @@ Hold this research in context — it shapes SOUL.md, the agent file, and all gen
 
 Set `{MIND_DIR}` = `{MIND_PATH}` (repo mind) or `{MIND_HOME}` (user mind).
 
-Locate templates. Check `.github/skills/new-mind/templates/` first (post-bootstrap location).
-If that directory doesn't exist, fall back to `.genesis-temp/` (pre-bootstrap location).
-If neither exists, stop and tell the user:
-
-> "Templates not found. Run the parent mind's bootstrap first, or ensure
-> `.github/skills/new-mind/templates/` contains the genesis templates."
-
-Store the resolved path as `{TEMPLATES_DIR}`. Use it for all template reads below.
-Strip Design Notes from everything generated.
+Read templates from `.github/skills/new-mind/templates/`. These are the source of truth
+for all generated content. Strip Design Notes from everything generated.
 
 ### 6.1 Create the directory and git init
 
@@ -151,7 +144,7 @@ mkdir -p domains/minds
 
 ### 6.3 Generate SOUL.md
 
-Using `{TEMPLATES_DIR}/soul-template.md` as blueprint:
+Using `templates/soul-template.md` as blueprint:
 
 1. Write the opening paragraph channeling `{CHARACTER}`'s voice — not "be like X" but actually *being* X
 2. Fill in **Mission** tailored to `{ROLE}` and `{CHARACTER}`'s values
@@ -164,7 +157,7 @@ Using `{TEMPLATES_DIR}/soul-template.md` as blueprint:
 
 ### 6.4 Generate Agent File
 
-**For repo minds** — using `{TEMPLATES_DIR}/agent-file-template.md`:
+**For repo minds** — using `templates/agent-file-template.md`:
 
 Create `{MIND_DIR}/.github/agents/{AGENT_NAME}.agent.md` with YAML frontmatter:
 
@@ -179,7 +172,7 @@ Tailor Role, Method, and Operational Principles to `{ROLE}`.
 Always include Memory, Retrieval, Long Session Discipline, and Session Handover.
 Strip Design Notes.
 
-**For user minds** — using `{TEMPLATES_DIR}/agent-file-user-template.md`:
+**For user minds** — using `templates/agent-file-user-template.md`:
 
 Create `~/.copilot/agents/{AGENT_NAME}.agent.md` with YAML frontmatter:
 
@@ -200,7 +193,7 @@ Strip Design Notes.
 
 ### 6.5 Generate copilot-instructions.md
 
-**For repo minds only** — using `{TEMPLATES_DIR}/copilot-instructions-template.md`:
+**For repo minds only** — using `templates/copilot-instructions-template.md`:
 
 Create `{MIND_DIR}/.github/copilot-instructions.md`.
 Tailor to `{ROLE}` and `{CHARACTER}`.
@@ -210,7 +203,7 @@ User minds do not get a `copilot-instructions.md` — there is no single repo fo
 
 ### 6.6 Seed Working Memory
 
-Using `{TEMPLATES_DIR}/working-memory-example.md` and `{TEMPLATES_DIR}/rules-example.md` as guides:
+Using `templates/working-memory-example.md` and `templates/rules-example.md` as guides:
 
 **`{MIND_DIR}/.working-memory/memory.md`** — Architecture, Conventions, User Context placeholder.
 For user minds, include a `## Mind Location` section:
@@ -220,7 +213,8 @@ For user minds, include a `## Mind Location` section:
 - MIND_HOME: {MIND_HOME}
 - Agent file: ~/.copilot/agents/{AGENT_NAME}.agent.md
 - Shared commit skill: ~/.copilot/skills/commit/SKILL.md
-- If you move this repo, update both the agent file and commit skill with the new path.
+- Shared registry: ~/.copilot/registry.json
+- If you move this repo, update the agent file with the new path.
 ```
 
 **`{MIND_DIR}/.working-memory/rules.md`** — Just the header and one-liner explanation.
@@ -258,7 +252,7 @@ Where `{PARENT_MIND}` is the root of this mind's repository.
 
 ### 6.9 Generate registry.json
 
-Create `{MIND_DIR}/.github/registry.json`:
+**For repo minds**, create `{MIND_DIR}/.github/registry.json`:
 
 ```json
 {
@@ -302,8 +296,8 @@ Create `{MIND_DIR}/.github/registry.json`:
 }
 ```
 
-For user minds, omit the `commit` entry from skills (the shared user-level skill is at
-`~/.copilot/skills/commit/SKILL.md`, not inside the mind repo).
+**For user minds**, skip this step. The shared registry at `~/.copilot/registry.json` is
+handled in Phase 7 alongside other shared resources.
 
 ### 6.10 Generate mind-index.md
 
@@ -314,9 +308,10 @@ Create `{MIND_DIR}/mind-index.md` cataloging all generated files:
 - .working-memory/ — list of files
 - .github/skills/ — list of skills
 - .github/extensions/ — list of extensions
-- .github/registry.json
+- .github/registry.json (repo minds only)
 - For user minds: agent file location at `~/.copilot/agents/{AGENT_NAME}.agent.md`
 - For user minds: shared commit skill at `~/.copilot/skills/commit/SKILL.md`
+- For user minds: shared registry at `~/.copilot/registry.json`
 
 ---
 
@@ -352,7 +347,7 @@ Test-Path "$HOME/.copilot/skills/commit/SKILL.md"
 
 **If MISSING** — this is the first user-level mind. Install from the template:
 
-Read `{TEMPLATES_DIR}/commit-user-template.md` and write it to `~/.copilot/skills/commit/SKILL.md`.
+Read `templates/commit-user-template.md` and write it to `~/.copilot/skills/commit/SKILL.md`.
 
 The skill must have NO hardcoded paths — it references `MIND_HOME` as a concept from the
 active agent's session context, not as a literal string. It is generic by design.
@@ -364,6 +359,68 @@ Log in `{MIND_HOME}/.working-memory/log.md`:
 
 Log in `{MIND_HOME}/.working-memory/log.md`:
 `[identity] bootstrap: shared commit skill already present at ~/.copilot/skills/commit/SKILL.md — skipped`
+
+### 7.3 Install shared registry (if needed)
+
+Check whether the shared registry already exists:
+
+```powershell
+Test-Path "$HOME/.copilot/registry.json"
+```
+
+(On Unix/macOS: `[ -f ~/.copilot/registry.json ] && echo "EXISTS" || echo "MISSING"`)
+
+**If MISSING** — this is the first user-level mind. Create `~/.copilot/registry.json`:
+
+```json
+{
+  "version": "0.13.0",
+  "source": "ianphil/genesis",
+  "channel": "main",
+  "extensions": {
+    "cron": {
+      "version": "0.1.4",
+      "path": ".github/extensions/cron",
+      "description": "Scheduled job execution — cron, interval, and one-shot with prompt and command payloads"
+    },
+    "canvas": {
+      "version": "0.1.3",
+      "path": ".github/extensions/canvas",
+      "description": "Display rich HTML content in the browser with SSE live reload"
+    }
+  },
+  "skills": {
+    "commit": {
+      "version": "0.1.0",
+      "path": "~/.copilot/skills/commit",
+      "description": "Stage, commit, push with working memory observations"
+    },
+    "daily-report": {
+      "version": "0.1.0",
+      "path": ".github/skills/daily-report",
+      "description": "Morning briefing — ADO, Teams, calendar, email, mind next-actions"
+    },
+    "upgrade": {
+      "version": "0.4.0",
+      "path": ".github/skills/upgrade",
+      "description": "Pull new extensions and skills from the genesis template registry"
+    },
+    "new-mind": {
+      "version": "0.1.0",
+      "path": ".github/skills/new-mind",
+      "description": "Bootstrap new minds — repo-level or user-level"
+    }
+  }
+}
+```
+
+Log in `{MIND_HOME}/.working-memory/log.md`:
+`[identity] bootstrap: installed shared registry to ~/.copilot/registry.json`
+
+**If EXISTS** — the registry is already installed from a previous user mind. Skip.
+
+Log in `{MIND_HOME}/.working-memory/log.md`:
+`[identity] bootstrap: shared registry already present at ~/.copilot/registry.json — skipped`
 
 ---
 
@@ -434,7 +491,7 @@ Where `{PARENT_MIND}` is the root of this (the parent) mind's repository.
 > **Three locations to know:**
 > - **Agent file**: `~/.copilot/agents/{AGENT_NAME}.agent.md` — who the agent is, where its mind lives
 > - **Mind repo**: `{MIND_HOME}` — all memory, knowledge, and skills
-> - **Shared commit skill**: `~/.copilot/skills/commit/SKILL.md` — the handover ritual, shared by all user-level agents
+> - **Shared resources**: `~/.copilot/` — commit skill, registry, shared by all user-level agents
 >
 > **To use it:** Open *any* directory. Run `copilot --experimental`. Type `/agent` and
 > select **{AGENT_NAME}**. The agent will load its identity, then shell out to read its
