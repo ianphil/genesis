@@ -1,10 +1,8 @@
 namespace MicroUI;
 
 /// <summary>
-/// JavaScript bridge injected into every page loaded by MicroUI.
+/// JavaScript bridge injected into file-based pages loaded by MicroUI.
 /// Provides window.genesis.send() and window.genesis.close().
-/// Also sets up window.external.receiveMessage to handle eval commands
-/// sent via the EvalJs pathway.
 /// </summary>
 public static class BridgeScript
 {
@@ -29,16 +27,6 @@ public static class BridgeScript
               window.external.sendMessage(JSON.stringify({ __genesis_close: true }));
             }
           };
-
-          // Handle incoming messages from the host (eval commands).
-          window.external.receiveMessage(function (message) {
-            try {
-              // eslint-disable-next-line no-eval
-              eval(message);
-            } catch (err) {
-              console.error('[genesis] eval error:', err);
-            }
-          });
         })();
         """;
 }

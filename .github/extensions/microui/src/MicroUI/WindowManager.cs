@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 
 namespace MicroUI;
@@ -12,31 +11,15 @@ public sealed class WindowManager : IDisposable
     private readonly Photino.NET.PhotinoWindow _window;
     private readonly CliOptions _opts;
     private readonly Action<string> _emitEvent;
+    private readonly bool _isUrlMode;
+    private readonly string? _tempHtmlPath;
     private bool _disposed;
 
-    public WindowManager(CliOptions opts, Action<string> emitEvent, string? initialHtml = null)
+    public WindowManager(CliOptions opts, Action<string> emitEvent, string? initialHtml = null, string? url = null)
     {
         _opts = opts;
         _emitEvent = emitEvent;
-
-        // Write initial HTML to a temp file — LoadRawString has cross-platform issues;
-        // loading from file is more reliable with WebView2.
-        string? tempHtmlPath = null;
-        if (initialHtml is not null)
-        {
-            // Inject bridge script
-            if (initialHtml.Contains("</body>", StringComparison.OrdinalIgnoreCase))
-            {
-                initialHtml = initialHtml.Replace("</body>", $"<script>{BridgeScript.Source}</script>\n</body>",
-                    StringComparison.OrdinalIgnoreCase);
-            }
-            else
-            {
-                initialHtml += $"\n<script>{BridgeScript.Source}</script>";
-            }
-            tempHtmlPath = Path.Combine(Path.GetTempPath(), $"microui-{Guid.NewGuid():N}.html");
-            File.WriteAllText(tempHtmlPath, initialHtml);
-        }
+        _isUrlMode = !string.IsNullOrWhiteSpace(url);
 
         _window = new Photino.NET.PhotinoWindow()
             .SetTitle(opts.Title)
@@ -47,24 +30,42 @@ public sealed class WindowManager : IDisposable
             .SetTopMost(opts.Floating)
             .SetMinimized(opts.Hidden);
 
-        if (tempHtmlPath is not null)
+        if (_isUrlMode)
         {
-            _window.Load(tempHtmlPath);
+            _window.Load(url!);
         }
         else
         {
-            _window.LoadRawString("<html><body></body></html>");
+            var html = InjectBridge(initialHtml ?? "<html><body></body></html>");
+            _tempHtmlPath = Path.Combine(Path.GetTempPath(), $"microui-{Guid.NewGuid():N}.html");
+            File.WriteAllText(_tempHtmlPath, html);
+            _window.Load(_tempHtmlPath);
         }
 
-        // Register event handlers
         _window.RegisterWebMessageReceivedHandler(OnWebMessage);
         _window.RegisterWindowCreatedHandler(OnWindowCreated);
         _window.RegisterWindowClosingHandler(OnWindowClosing);
     }
 
+    private static string InjectBridge(string html)
+    {
+        if (html.Contains("</body>", StringComparison.OrdinalIgnoreCase))
+        {
+            return html.Replace("</body>", $"<script>{BridgeScript.Source}</script>\n</body>",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (html.Contains("</html>", StringComparison.OrdinalIgnoreCase))
+        {
+            return html.Replace("</html>", $"<script>{BridgeScript.Source}</script>\n</html>",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        return html + $"\n<script>{BridgeScript.Source}</script>";
+    }
+
     private void OnWindowCreated(object? sender, EventArgs e)
     {
-        // Emit ready event with screen size
         var screenSize = _window.MainMonitor.WorkArea;
         var ready = new ReadyEvent
         {
@@ -80,7 +81,7 @@ public sealed class WindowManager : IDisposable
     private bool OnWindowClosing(object sender, EventArgs e)
     {
         _emitEvent(JsonSerializer.Serialize(new ClosedEvent(), MicroUIJsonContext.Default.ClosedEvent));
-        return false; // false = allow close
+        return false;
     }
 
     private void OnWebMessage(object? sender, string message)
@@ -90,14 +91,12 @@ public sealed class WindowManager : IDisposable
         try
         {
             using var doc = JsonDocument.Parse(message);
-            // Check for internal close signal
             if (doc.RootElement.TryGetProperty("__genesis_close", out var closeFlag) && closeFlag.GetBoolean())
             {
                 _window.Close();
                 return;
             }
 
-            // Forward as a host message event — parse as raw JsonElement to preserve any shape
             var evt = new MessageEvent { Data = doc.RootElement.Clone() };
             _emitEvent(JsonSerializer.Serialize(evt, MicroUIJsonContext.Default.MessageEvent));
 
@@ -108,38 +107,7 @@ public sealed class WindowManager : IDisposable
         }
         catch (JsonException)
         {
-            // Non-JSON messages are ignored
         }
-    }
-
-    /// <summary>Load base64-encoded HTML into the window.</summary>
-    public void LoadHtml(string base64Html)
-    {
-        var html = Encoding.UTF8.GetString(Convert.FromBase64String(base64Html));
-        // Inject bridge before </body> if present, otherwise append
-        if (html.Contains("</body>", StringComparison.OrdinalIgnoreCase))
-        {
-            html = html.Replace("</body>", $"<script>{BridgeScript.Source}</script>\n</body>",
-                StringComparison.OrdinalIgnoreCase);
-        }
-        else if (html.Contains("</html>", StringComparison.OrdinalIgnoreCase))
-        {
-            html = html.Replace("</html>", $"<script>{BridgeScript.Source}</script>\n</html>",
-                StringComparison.OrdinalIgnoreCase);
-        }
-        else
-        {
-            html += $"\n<script>{BridgeScript.Source}</script>";
-        }
-
-        _window.LoadRawString(html);
-    }
-
-    /// <summary>Evaluate JavaScript in the window via the bridge.</summary>
-    public void EvalJs(string js)
-    {
-        // Send the JS as a message; the bridge script's receiveMessage handler evals it.
-        _window.SendWebMessage(js);
     }
 
     /// <summary>
@@ -152,7 +120,7 @@ public sealed class WindowManager : IDisposable
         {
             _window.SetTitle(title);
         }
-        // Restore if minimized (i.e., started with --hidden)
+
         if (_window.Minimized)
         {
             _window.SetMinimized(false);
@@ -178,8 +146,12 @@ public sealed class WindowManager : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        // PhotinoWindow does not implement IDisposable; Close() handles cleanup.
-        try { _window.Close(); } catch { /* already closed */ }
+
+        try { _window.Close(); } catch { }
+
+        if (_tempHtmlPath is not null)
+        {
+            try { File.Delete(_tempHtmlPath); } catch { }
+        }
     }
 }
-
