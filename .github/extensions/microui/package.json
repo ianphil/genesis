@@ -1,0 +1,5 @@
+{
+  "name": "copilot-microui-extension",
+  "private": true,
+  "type": "module"
+}

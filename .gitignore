@@ -18,3 +18,9 @@ Thumbs.db
 .github/extensions/canvas/data/content/
 !.github/extensions/canvas/data/content/test-canvas.html
 .github/extensions/canvas/node_modules/
+
+# MicroUI extension build artifacts
+.github/extensions/microui/src/MicroUI/bin/
+.github/extensions/microui/src/MicroUI/obj/
+.github/extensions/microui/bin/
+.github/extensions/microui/node_modules/

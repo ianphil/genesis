@@ -1,0 +1,25 @@
+{
+  "name": "microui",
+  "version": "0.1.0",
+  "description": "Lightweight native WebView windows for scripts and agents — cross-platform micro-UI over JSON Lines",
+  "entry": "extension.mjs",
+  "tools": ["microui_show", "microui_update", "microui_close", "microui_list"],
+  "platforms": ["win32", "darwin", "linux"],
+  "runtime": "node",
+  "binary": {
+    "description": "Pre-built NativeAOT binaries for each platform",
+    "win-x64":   "bin/win-x64/microui.exe",
+    "osx-arm64": "bin/osx-arm64/microui",
+    "osx-x64":   "bin/osx-x64/microui",
+    "linux-x64": "bin/linux-x64/microui"
+  },
+  "build": {
+    "description": "Build from source — requires .NET 8 SDK",
+    "commands": {
+      "win-x64":   "dotnet publish src/MicroUI/MicroUI.csproj -r win-x64   -c Release /p:PublishAot=true -o bin/win-x64",
+      "osx-arm64": "dotnet publish src/MicroUI/MicroUI.csproj -r osx-arm64 -c Release /p:PublishAot=true -o bin/osx-arm64",
+      "osx-x64":   "dotnet publish src/MicroUI/MicroUI.csproj -r osx-x64   -c Release /p:PublishAot=true -o bin/osx-x64",
+      "linux-x64": "dotnet publish src/MicroUI/MicroUI.csproj -r linux-x64 -c Release /p:PublishAot=true -o bin/linux-x64"
+    }
+  }
+}
