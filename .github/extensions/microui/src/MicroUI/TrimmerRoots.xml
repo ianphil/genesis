@@ -1,0 +1,8 @@
+<linker>
+  <assembly fullname="MicroUI">
+    <type fullname="MicroUI.Program" preserve="all" />
+    <type fullname="MicroUI.Protocol" preserve="all" />
+    <type fullname="MicroUI.WindowManager" preserve="all" />
+    <type fullname="MicroUI.BridgeScript" preserve="all" />
+  </assembly>
+</linker>
