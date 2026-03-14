@@ -32,10 +32,10 @@ This document is written for AI agents contributing to the codebase. If you are 
 .github/
   extensions/     # Copilot CLI extensions (tools the agent can use)
   skills/         # Skills (markdown instructions + scripts)
+    new-mind/templates/  # Genesis templates (soul, agent file, etc.)
   registry.json   # Version manifest — tracks what's installed
   agents/         # Agent definition files
   copilot-instructions.md  # Bootstrap instructions (consumed during genesis)
-.genesis-temp/    # Templates consumed during bootstrap (not shipped to agents)
 .working-memory/  # Stub files — overwritten during agent bootstrap
 ```
 

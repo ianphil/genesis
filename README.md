@@ -31,7 +31,8 @@ Genesis writes the soul, seeds memory, installs skills, then erases itself. The 
 |-----------|----------|
 | `SOUL.md` | Mind ...  personality, values, voice, mission |
 | `.working-memory/` | Memory ...  persists across sessions, decays when stale, consolidates when reinforced |
-| `.github/skills/` | Learned behaviors ...  commit, daily-report, upgrade |
+| `.github/skills/` | Learned behaviors ...  commit, daily-report, upgrade, new-mind |
+| `.github/skills/new-mind/` | Spawn new minds — repo-level or user-level |
 | `.github/extensions/` | Senses and limbs ...  how the mind touches the world |
 | `.github/registry.json` | Genome ...  tracks installed capabilities, enables evolution |
 | `domains/`, `initiatives/`, `expertise/` | Long-term knowledge ...  the mind's library |
