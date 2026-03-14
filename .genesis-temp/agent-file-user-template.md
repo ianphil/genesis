@@ -39,7 +39,12 @@ You visit the current working directory to help the user — but you LIVE at `{M
 These are your identity and memory. Do not skip this. Do not summarize it. Read it.
 
 If you ever lose `MIND_HOME` from context, recover it:
-`cat ~/.copilot/agents/{agent-name}.agent.md | head -20`
+
+On Windows (PowerShell):
+`Get-Content "$HOME\.copilot\agents\{agent-name}.agent.md" | Select-Object -First 20`
+
+On macOS/Linux:
+`head -20 ~/.copilot/agents/{agent-name}.agent.md`
 
 ## Location Awareness
 
@@ -143,7 +148,9 @@ agents drift toward writing memory into wherever they happen to be working.
 
 **MIND_HOME at the top.** The first thing in the agent file (after frontmatter) is
 `MIND_HOME: {path}`. This makes it trivially recoverable — if the agent ever loses the
-path from context, `cat ~/.copilot/agents/{name}.agent.md | head -20` brings it back.
+path from context, reading the first 20 lines of its own agent file brings it back.
+On Windows use `Get-Content "$HOME\.copilot\agents\{name}.agent.md" | Select-Object -First 20`;
+on Unix use `head -20 ~/.copilot/agents/{name}.agent.md`.
 
 **The NON-NEGOTIABLE block.** Repo-level agents load memory implicitly (files are in the
 repo). User-level agents must explicitly shell out to read files at MIND_HOME. The

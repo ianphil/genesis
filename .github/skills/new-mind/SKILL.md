@@ -110,8 +110,15 @@ Hold this research in context — it shapes SOUL.md, the agent file, and all gen
 
 Set `{MIND_DIR}` = `{MIND_PATH}` (repo mind) or `{MIND_HOME}` (user mind).
 
-Read templates from `.github/skills/new-mind/templates/`. These are the source of truth
-for all generated content. Strip Design Notes from everything generated.
+Locate templates. Check `.github/skills/new-mind/templates/` first (post-bootstrap location).
+If that directory doesn't exist, fall back to `.genesis-temp/` (pre-bootstrap location).
+If neither exists, stop and tell the user:
+
+> "Templates not found. Run the parent mind's bootstrap first, or ensure
+> `.github/skills/new-mind/templates/` contains the genesis templates."
+
+Store the resolved path as `{TEMPLATES_DIR}`. Use it for all template reads below.
+Strip Design Notes from everything generated.
 
 ### 6.1 Create the directory and git init
 
@@ -131,6 +138,9 @@ mkdir -p initiatives
 mkdir -p expertise
 mkdir -p inbox
 mkdir -p Archive
+mkdir -p .github/agents
+mkdir -p .github/skills
+mkdir -p .github/extensions
 ```
 
 For user minds, also create:
@@ -141,7 +151,7 @@ mkdir -p domains/minds
 
 ### 6.3 Generate SOUL.md
 
-Using `templates/soul-template.md` as blueprint:
+Using `{TEMPLATES_DIR}/soul-template.md` as blueprint:
 
 1. Write the opening paragraph channeling `{CHARACTER}`'s voice — not "be like X" but actually *being* X
 2. Fill in **Mission** tailored to `{ROLE}` and `{CHARACTER}`'s values
@@ -154,7 +164,7 @@ Using `templates/soul-template.md` as blueprint:
 
 ### 6.4 Generate Agent File
 
-**For repo minds** — using `templates/agent-file-template.md`:
+**For repo minds** — using `{TEMPLATES_DIR}/agent-file-template.md`:
 
 Create `{MIND_DIR}/.github/agents/{AGENT_NAME}.agent.md` with YAML frontmatter:
 
@@ -169,7 +179,7 @@ Tailor Role, Method, and Operational Principles to `{ROLE}`.
 Always include Memory, Retrieval, Long Session Discipline, and Session Handover.
 Strip Design Notes.
 
-**For user minds** — using `templates/agent-file-user-template.md`:
+**For user minds** — using `{TEMPLATES_DIR}/agent-file-user-template.md`:
 
 Create `~/.copilot/agents/{AGENT_NAME}.agent.md` with YAML frontmatter:
 
@@ -190,7 +200,7 @@ Strip Design Notes.
 
 ### 6.5 Generate copilot-instructions.md
 
-**For repo minds only** — using `templates/copilot-instructions-template.md`:
+**For repo minds only** — using `{TEMPLATES_DIR}/copilot-instructions-template.md`:
 
 Create `{MIND_DIR}/.github/copilot-instructions.md`.
 Tailor to `{ROLE}` and `{CHARACTER}`.
@@ -200,7 +210,7 @@ User minds do not get a `copilot-instructions.md` — there is no single repo fo
 
 ### 6.6 Seed Working Memory
 
-Using `templates/working-memory-example.md` and `templates/rules-example.md` as guides:
+Using `{TEMPLATES_DIR}/working-memory-example.md` and `{TEMPLATES_DIR}/rules-example.md` as guides:
 
 **`{MIND_DIR}/.working-memory/memory.md`** — Architecture, Conventions, User Context placeholder.
 For user minds, include a `## Mind Location` section:
@@ -316,6 +326,15 @@ Skip this phase for repo minds.
 
 ### 7.1 Ensure ~/.copilot directories exist
 
+Create the user-level Copilot directories if they don't already exist:
+
+On Windows (PowerShell):
+```powershell
+New-Item -ItemType Directory -Force -Path "$HOME\.copilot\agents"
+New-Item -ItemType Directory -Force -Path "$HOME\.copilot\skills\commit"
+```
+
+On macOS/Linux:
 ```bash
 mkdir -p ~/.copilot/agents
 mkdir -p ~/.copilot/skills/commit
@@ -325,13 +344,15 @@ mkdir -p ~/.copilot/skills/commit
 
 Check whether the shared commit skill already exists:
 
-```bash
-[ -f ~/.copilot/skills/commit/SKILL.md ] && echo "EXISTS" || echo "MISSING"
+```powershell
+Test-Path "$HOME/.copilot/skills/commit/SKILL.md"
 ```
+
+(On Unix/macOS: `[ -f ~/.copilot/skills/commit/SKILL.md ] && echo "EXISTS" || echo "MISSING"`)
 
 **If MISSING** — this is the first user-level mind. Install from the template:
 
-Read `templates/commit-user-template.md` and write it to `~/.copilot/skills/commit/SKILL.md`.
+Read `{TEMPLATES_DIR}/commit-user-template.md` and write it to `~/.copilot/skills/commit/SKILL.md`.
 
 The skill must have NO hardcoded paths — it references `MIND_HOME` as a concept from the
 active agent's session context, not as a literal string. It is generic by design.

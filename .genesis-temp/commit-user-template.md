@@ -16,8 +16,14 @@ You loaded `MIND_HOME` at session start from your agent file.
 
 If you don't have `MIND_HOME` in context, recover it now:
 
+On Windows (PowerShell):
+```powershell
+Get-Content "$HOME\.copilot\agents\{your-agent-name}.agent.md" | Select-Object -First 20
+```
+
+On macOS/Linux:
 ```bash
-cat ~/.copilot/agents/{your-agent-name}.agent.md | head -20
+head -20 ~/.copilot/agents/{your-agent-name}.agent.md
 ```
 
 The first lines after the frontmatter declare `MIND_HOME`. Read it and hold it for all
