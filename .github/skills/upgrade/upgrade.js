@@ -44,12 +44,35 @@ function findRepoRoot() {
     if (fs.existsSync(path.join(dir, ".github", "registry.json"))) return dir;
     dir = path.dirname(dir);
   }
+  // User-level layout: registry.json at CWD (e.g. ~/.copilot/)
+  if (fs.existsSync(path.join(process.cwd(), "registry.json"))) {
+    return process.cwd();
+  }
   // Fallback: cwd
   return process.cwd();
 }
 
+function detectLayout(root) {
+  if (fs.existsSync(path.join(root, ".github", "registry.json"))) return "repo";
+  if (fs.existsSync(path.join(root, "registry.json"))) return "user";
+  return "repo";
+}
+
+function registryPath(root) {
+  return detectLayout(root) === "user"
+    ? path.join(root, "registry.json")
+    : path.join(root, ".github", "registry.json");
+}
+
+function mapPathToLocal(remotePath, layout) {
+  if (layout === "user") {
+    return remotePath.replace(/^\.github\//, "");
+  }
+  return remotePath;
+}
+
 function readLocalRegistry(root) {
-  const p = path.join(root, ".github", "registry.json");
+  const p = registryPath(root);
   if (!fs.existsSync(p)) {
     return { version: "0.0.0", source: "", extensions: {}, skills: {} };
   }
@@ -57,7 +80,7 @@ function readLocalRegistry(root) {
 }
 
 function writeLocalRegistry(root, registry) {
-  const p = path.join(root, ".github", "registry.json");
+  const p = registryPath(root);
   fs.writeFileSync(p, JSON.stringify(registry, null, 2) + "\n", "utf8");
 }
 
@@ -177,7 +200,7 @@ function check() {
 
   if (!local.source) {
     console.error(
-      JSON.stringify({ error: "No source configured in .github/registry.json" })
+      JSON.stringify({ error: "No source configured in local registry" })
     );
     process.exit(1);
   }
@@ -202,6 +225,7 @@ function check() {
 
 function install(names) {
   const root = findRepoRoot();
+  const layout = detectLayout(root);
   const local = readLocalRegistry(root);
   const { owner, repo } = parseSource(local.source);
   const branch = resolveChannel(local);
@@ -251,7 +275,8 @@ function install(names) {
       if (!requestedNames.has(name)) continue;
 
       const isNew = !(name in localItems);
-      const itemPath = info.path; // e.g. ".github/extensions/cron"
+      const itemPath = info.path; // remote path for tree matching (e.g. ".github/extensions/cron")
+      const localItemPath = mapPathToLocal(itemPath, layout);
 
       try {
         // Find all files under this item's path in the tree
@@ -275,7 +300,7 @@ function install(names) {
         let fileCount = 0;
         for (const file of files) {
           const content = ghBlob(owner, repo, file.sha);
-          const localPath = path.join(root, file.path);
+          const localPath = path.join(root, mapPathToLocal(file.path, layout));
           const dir = path.dirname(localPath);
 
           fs.mkdirSync(dir, { recursive: true });
@@ -284,12 +309,12 @@ function install(names) {
         }
 
         // Run npm install if package.json exists
-        const pkgPath = path.join(root, itemPath, "package.json");
+        const pkgPath = path.join(root, localItemPath, "package.json");
         let npmInstalled = false;
         if (fs.existsSync(pkgPath)) {
           try {
             execSync("npm install --production", {
-              cwd: path.join(root, itemPath),
+              cwd: path.join(root, localItemPath),
               encoding: "utf8",
               stdio: "pipe",
             });
@@ -306,7 +331,7 @@ function install(names) {
         if (!local[type]) local[type] = {};
         local[type][name] = {
           version: info.version,
-          path: info.path,
+          path: localItemPath,
           description: info.description,
         };
 
@@ -509,7 +534,7 @@ function channel(name) {
 
   if (!local.source) {
     console.error(
-      JSON.stringify({ error: "No source configured in .github/registry.json" })
+      JSON.stringify({ error: "No source configured in local registry" })
     );
     process.exit(1);
   }
@@ -563,7 +588,7 @@ function channel(name) {
 
 // ── Exports (for testing) ────────────────────────────────────────────────────
 
-module.exports = { compareSemver, diffRegistries, remove, pin, resolveChannel };
+module.exports = { compareSemver, diffRegistries, remove, pin, resolveChannel, detectLayout, mapPathToLocal };
 
 // ── CLI entry ────────────────────────────────────────────────────────────────
 

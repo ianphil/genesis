@@ -12,10 +12,24 @@ Check the genesis template for new or updated extensions and skills, then instal
 ## Prerequisites
 
 - `gh` CLI must be authenticated (`gh auth status`)
-- `.github/registry.json` must exist with a `source` field (e.g. `"source": "ianphil/genesis"`)
+- A `registry.json` must exist with a `source` field (e.g. `"source": "ianphil/genesis"`)
+  - **Repo-level minds**: `.github/registry.json`
+  - **User-level minds**: `registry.json` at `~/.copilot/`
 - Optional `"branch"` field in `registry.json` to track a non-main branch (defaults to `"main"`)
 - Optional `"channel"` field in `registry.json` to select a release channel (e.g. `"main"`, `"frontier"`). Takes precedence over `"branch"`. Defaults to `"main"`.
 - If `registry.json` is missing or has no `source`, ask the user for the source repo (default: `ianphil/genesis`) and create it
+
+## Layouts
+
+The upgrade script supports two filesystem layouts:
+
+| | Repo-level | User-level |
+|---|---|---|
+| **Registry** | `.github/registry.json` | `registry.json` (at `~/.copilot/`) |
+| **Item paths** | `.github/extensions/cron` | `extensions/cron` |
+| **Run from** | Repo root | `~/.copilot/` |
+
+Detection is automatic — the script checks for `.github/registry.json` first (repo layout), then `registry.json` in CWD (user layout). Remote paths (`.github/extensions/...`) are mapped to local paths automatically for user-level layouts.
 
 ## Channels
 
@@ -120,7 +134,7 @@ This:
 - Fetches the full file tree from the remote repo (single API call)
 - Downloads and writes every file for each selected item
 - Runs `npm install --production` if a `package.json` exists in the item's path
-- Updates `.github/registry.json` with new versions
+- Updates the local `registry.json` with new versions
 
 Output JSON:
 
@@ -146,7 +160,7 @@ node .github/skills/upgrade/upgrade.js remove tunnel,old-skill
 This:
 - Looks up each name in the local registry (extensions and skills)
 - Deletes the directory from disk
-- Removes the entry from `.github/registry.json`
+- Removes the entry from the local `registry.json`
 
 Output JSON:
 
@@ -166,7 +180,7 @@ For removed items the user chose to **keep**, pin them so they won't be flagged 
 node .github/skills/upgrade/upgrade.js pin tunnel
 ```
 
-This sets `"local": true` on the item in `.github/registry.json`. Future `check` runs will list it under `localOnly` instead of `removed`.
+This sets `"local": true` on the item in the local `registry.json`. Future `check` runs will list it under `localOnly` instead of `removed`.
 
 Output JSON:
 

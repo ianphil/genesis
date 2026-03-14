@@ -55,6 +55,11 @@
       "path": ".github/skills/upgrade",
       "description": "Pull new extensions and skills from the genesis template registry"
     },
+    "new-mind": {
+      "version": "0.1.0",
+      "path": ".github/skills/new-mind",
+      "description": "Bootstrap new minds — repo-level or user-level"
+    },
     "agent-comms": {
       "version": "0.1.0",
       "path": ".github/skills/agent-comms",
