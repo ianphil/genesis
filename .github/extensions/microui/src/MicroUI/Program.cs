@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using MicroUI;
 
 namespace MicroUI;
 
@@ -9,6 +8,13 @@ class Program
     [STAThread]
     static void Main(string[] args)
     {
+        // Check for --chat mode
+        if (args.Contains("--chat"))
+        {
+            RunChat(args);
+            return;
+        }
+
         var opts = ParseArgs(args);
 
         void Emit(string json)
@@ -137,5 +143,51 @@ class Program
             Frameless = frameless, Floating = floating,
             Hidden = hidden, AutoClose = autoClose,
         };
+    }
+
+    static void RunChat(string[] args)
+    {
+        // Parse --port
+        int port = 15210;
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--port" && i + 1 < args.Length)
+                port = int.TryParse(args[++i], out var p) ? p : port;
+        }
+
+        // Load embedded chat HTML and inject the port
+        var assembly = typeof(Program).Assembly;
+        string html;
+        using (var stream = assembly.GetManifestResourceStream("MicroUI.chat.html"))
+        {
+            if (stream is null) { Console.Error.WriteLine("microui: embedded chat.html not found"); return; }
+            using var reader = new System.IO.StreamReader(stream);
+            html = reader.ReadToEnd();
+        }
+
+        // Inject the actual port into the HTML
+        html = html.Replace("var API_PORT = 15210;", $"var API_PORT = {port};");
+
+        // Write to temp file for loading
+        var tempPath = Path.Combine(Path.GetTempPath(), $"microui-chat-{Guid.NewGuid():N}.html");
+        File.WriteAllText(tempPath, html);
+
+        var window = new Photino.NET.PhotinoWindow()
+            .SetTitle("Copilot Agent Chat")
+            .SetSize(500, 650)
+            .SetUseOsDefaultLocation(true)
+            .SetResizable(true)
+            .SetTopMost(true)
+            .Load(tempPath);
+
+        window.RegisterWindowCreatedHandler((sender, e) =>
+        {
+            Console.Error.WriteLine($"microui-chat: ready, talking directly to responses API on port {port}");
+        });
+
+        window.WaitForClose();
+
+        // Cleanup
+        try { File.Delete(tempPath); } catch { }
     }
 }
