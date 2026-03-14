@@ -59,19 +59,22 @@ Minds evolve. New senses and skills can be pulled from the genesis registry at a
 
 No git remotes. No manual downloads. The mind upgrades itself through its own tools.
 
-### Frontier Channel
+### Frontier Package
 
-Additional senses are available on the **frontier** channel for agents who want to push beyond the known map:
+Additional senses and skills are available from the **[genesis-frontier](https://github.com/ianphil/genesis-frontier)** package:
 
 | Extension | Sense |
 |-----------|-------|
 | heartbeat | **Subconscious** ...  consolidate, decay, and reinforce long-term memories |
 | code-exec | **Hands** ...  discover and orchestrate enterprise tools via MCP |
 | tunnel | **Reach** ...  expose local ports to the internet via Dev Tunnels |
+| microui | **Eyes** ...  lightweight native WebView windows |
 
 ```
-> Switch to frontier channel
+> Install the frontier package
 ```
+
+Or selectively: `install ianphil/genesis-frontier --items heartbeat,microui`
 
 ## The Maze
 
