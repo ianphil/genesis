@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0d1117; color: #e6edf3; height: 100vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .header {
+    padding: 0.75rem 1rem; background: #161b22;
+    border-bottom: 1px solid #30363d; display: flex;
+    align-items: center; gap: 0.5rem; flex-shrink: 0;
+  }
+  .header .dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; }
+  .header .dot.disconnected { background: #f85149; }
+  .header h3 { font-size: 0.9rem; font-weight: 500; }
+  .header .status { font-size: 0.75rem; color: #8b949e; margin-left: auto; }
+
+  .messages {
+    flex: 1; overflow-y: auto; padding: 1rem; display: flex;
+    flex-direction: column; gap: 0.75rem;
+  }
+  .messages::-webkit-scrollbar { width: 6px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+  .msg { max-width: 85%; padding: 0.6rem 0.9rem; border-radius: 12px;
+    font-size: 0.9rem; line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; }
+  .msg.user { align-self: flex-end; background: #1f6feb; color: #fff; border-bottom-right-radius: 4px; }
+  .msg.agent { align-self: flex-start; background: #161b22; border: 1px solid #30363d; border-bottom-left-radius: 4px; }
+  .msg.agent .label { font-size: 0.7rem; color: #8b949e; margin-bottom: 0.25rem; }
+  .msg.error { align-self: center; background: #3d1114; border: 1px solid #f8514950; color: #f85149;
+    font-size: 0.8rem; border-radius: 8px; }
+  .msg.system { align-self: center; color: #8b949e; font-size: 0.8rem; font-style: italic; }
+
+  .typing { display: inline-flex; gap: 4px; padding: 0.6rem 0.9rem; }
+  .typing span { width: 6px; height: 6px; background: #8b949e; border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out; }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+  .input-area {
+    padding: 0.75rem; background: #161b22; border-top: 1px solid #30363d;
+    display: flex; gap: 0.5rem; flex-shrink: 0;
+  }
+  .input-area textarea {
+    flex: 1; padding: 0.6rem 0.8rem; background: #0d1117; border: 1px solid #30363d;
+    border-radius: 8px; color: #e6edf3; font-family: inherit; font-size: 0.9rem;
+    resize: none; outline: none; min-height: 40px; max-height: 120px;
+  }
+  .input-area textarea:focus { border-color: #1f6feb; }
+  .input-area button {
+    padding: 0.6rem 1rem; background: #1f6feb; color: #fff; border: none;
+    border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 500;
+    align-self: flex-end; transition: background 0.15s;
+  }
+  .input-area button:hover { background: #388bfd; }
+  .input-area button:disabled { background: #30363d; color: #484f58; cursor: default; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="dot" id="statusDot"></div>
+    <h3>Copilot Agent Chat</h3>
+    <span class="status" id="statusText">Connected</span>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="msg system">Connected to Copilot CLI session. Type a message below.</div>
+  </div>
+
+  <div class="input-area">
+    <textarea id="input" rows="1" placeholder="Message the agent..." autofocus></textarea>
+    <button id="sendBtn" onclick="sendMessage()">Send</button>
+  </div>
+
+  <script>
+    var msgContainer = document.getElementById('messages');
+    var inputEl = document.getElementById('input');
+    var sendBtn = document.getElementById('sendBtn');
+    var isStreaming = false;
+    var currentAgentMsg = null;
+    var API_PORT = 15210;
+
+    // Auto-resize textarea
+    inputEl.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // Enter to send (Shift+Enter for newline)
+    inputEl.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    function sendMessage() {
+      var text = inputEl.value.trim();
+      if (!text || isStreaming) return;
+
+      addMessage('user', text);
+      inputEl.value = '';
+      inputEl.style.height = 'auto';
+
+      isStreaming = true;
+      sendBtn.disabled = true;
+
+      // Show typing indicator
+      var typing = document.createElement('div');
+      typing.className = 'msg agent';
+      typing.id = 'typing';
+      typing.innerHTML = '<div class="label">Agent</div><div class="typing"><span></span><span></span><span></span></div>';
+      msgContainer.appendChild(typing);
+      scrollToBottom();
+
+      // Call responses API directly via fetch + SSE streaming
+      fetch('http://127.0.0.1:' + API_PORT + '/v1/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'copilot', input: text, stream: true })
+      }).then(function(response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = '';
+        var started = false;
+
+        function pump() {
+          return reader.read().then(function(result) {
+            if (result.done) {
+              onDone();
+              return;
+            }
+            buffer += decoder.decode(result.value, { stream: true });
+            var lines = buffer.split('\n');
+            buffer = lines.pop(); // keep incomplete line
+
+            var currentEvent = '';
+            for (var i = 0; i < lines.length; i++) {
+              var line = lines[i];
+              if (line.indexOf('event: ') === 0) {
+                currentEvent = line.substring(7).trim();
+              } else if (line.indexOf('data: ') === 0 && currentEvent === 'response.output_text.delta') {
+                try {
+                  var data = JSON.parse(line.substring(6));
+                  if (data.delta) {
+                    if (!started) { started = true; onStreamStart(); }
+                    onToken(data.delta);
+                  }
+                } catch(e) {}
+                currentEvent = '';
+              } else if (line.indexOf('event: response.completed') === 0 ||
+                         (line.indexOf('data: ') === 0 && currentEvent === 'response.completed')) {
+                // Stream is done
+              }
+            }
+            return pump();
+          });
+        }
+        return pump();
+      }).catch(function(err) {
+        onError(err.message || 'Connection failed');
+      });
+    }
+
+    function addMessage(role, text) {
+      var div = document.createElement('div');
+      div.className = 'msg ' + role;
+      if (role === 'agent') {
+        div.innerHTML = '<div class="label">Agent</div><span class="text"></span>';
+        div.querySelector('.text').textContent = text;
+      } else {
+        div.textContent = text;
+      }
+      msgContainer.appendChild(div);
+      scrollToBottom();
+      return div;
+    }
+
+    // Called from C# when streaming starts
+    function onStreamStart() {
+      var typing = document.getElementById('typing');
+      if (typing) typing.remove();
+      currentAgentMsg = document.createElement('div');
+      currentAgentMsg.className = 'msg agent';
+      currentAgentMsg.innerHTML = '<div class="label">Agent</div><span class="text"></span>';
+      msgContainer.appendChild(currentAgentMsg);
+      scrollToBottom();
+    }
+
+    // Called from C# with each token
+    function onToken(token) {
+      if (!currentAgentMsg) onStreamStart();
+      var textEl = currentAgentMsg.querySelector('.text');
+      textEl.textContent += token;
+      scrollToBottom();
+    }
+
+    // Called from C# when response is complete
+    function onDone() {
+      var typing = document.getElementById('typing');
+      if (typing) typing.remove();
+      currentAgentMsg = null;
+      isStreaming = false;
+      sendBtn.disabled = false;
+      inputEl.focus();
+    }
+
+    // Called from C# on error
+    function onError(msg) {
+      var typing = document.getElementById('typing');
+      if (typing) typing.remove();
+      currentAgentMsg = null;
+      var div = document.createElement('div');
+      div.className = 'msg error';
+      div.textContent = msg;
+      msgContainer.appendChild(div);
+      isStreaming = false;
+      sendBtn.disabled = false;
+      inputEl.focus();
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      msgContainer.scrollTop = msgContainer.scrollHeight;
+    }
+  </script>
+</body>
+</html>

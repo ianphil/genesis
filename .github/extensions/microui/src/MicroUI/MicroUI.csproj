@@ -19,4 +19,8 @@
     <PackageReference Include="Photino.NET" Version="3.1.13" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="chat.html" />
+  </ItemGroup>
+
 </Project>
