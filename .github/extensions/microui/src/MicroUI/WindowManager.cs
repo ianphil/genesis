@@ -14,10 +14,29 @@ public sealed class WindowManager : IDisposable
     private readonly Action<string> _emitEvent;
     private bool _disposed;
 
-    public WindowManager(CliOptions opts, Action<string> emitEvent)
+    public WindowManager(CliOptions opts, Action<string> emitEvent, string? initialHtml = null)
     {
         _opts = opts;
         _emitEvent = emitEvent;
+
+        // Write initial HTML to a temp file — LoadRawString has cross-platform issues;
+        // loading from file is more reliable with WebView2.
+        string? tempHtmlPath = null;
+        if (initialHtml is not null)
+        {
+            // Inject bridge script
+            if (initialHtml.Contains("</body>", StringComparison.OrdinalIgnoreCase))
+            {
+                initialHtml = initialHtml.Replace("</body>", $"<script>{BridgeScript.Source}</script>\n</body>",
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                initialHtml += $"\n<script>{BridgeScript.Source}</script>";
+            }
+            tempHtmlPath = Path.Combine(Path.GetTempPath(), $"microui-{Guid.NewGuid():N}.html");
+            File.WriteAllText(tempHtmlPath, initialHtml);
+        }
 
         _window = new Photino.NET.PhotinoWindow()
             .SetTitle(opts.Title)
@@ -26,7 +45,16 @@ public sealed class WindowManager : IDisposable
             .SetResizable(true)
             .SetChromeless(opts.Frameless)
             .SetTopMost(opts.Floating)
-            .SetMinimized(opts.Hidden); // start minimized when hidden is requested
+            .SetMinimized(opts.Hidden);
+
+        if (tempHtmlPath is not null)
+        {
+            _window.Load(tempHtmlPath);
+        }
+        else
+        {
+            _window.LoadRawString("<html><body></body></html>");
+        }
 
         // Register event handlers
         _window.RegisterWebMessageReceivedHandler(OnWebMessage);

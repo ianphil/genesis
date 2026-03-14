@@ -1,152 +1,141 @@
+using System.Text;
 using System.Text.Json;
 using MicroUI;
 
-// ---------- Parse CLI arguments ----------
+namespace MicroUI;
 
-var opts = ParseArgs(args);
-
-// ---------- Wire stdout emitter ----------
-
-// All events go to stdout as JSON Lines.
-void Emit(string json)
+class Program
 {
-    Console.Out.WriteLine(json);
-    Console.Out.Flush();
-}
-
-// ---------- Create window ----------
-
-using var window = new WindowManager(opts, Emit);
-
-// ---------- Stdin command loop (background thread) ----------
-
-var cts = new CancellationTokenSource();
-
-var stdinTask = Task.Run(async () =>
-{
-    try
+    [STAThread]
+    static void Main(string[] args)
     {
-        while (!cts.Token.IsCancellationRequested)
-        {
-            var line = await Console.In.ReadLineAsync(cts.Token);
-            if (line is null) break; // stdin closed
-            if (string.IsNullOrWhiteSpace(line)) continue;
+        var opts = ParseArgs(args);
 
+        void Emit(string json)
+        {
+            Console.Out.WriteLine(json);
+            Console.Out.Flush();
+        }
+
+        // Read first HTML command synchronously before creating window
+        string? initialHtml = null;
+        while (initialHtml is null)
+        {
+            var line = Console.In.ReadLine();
+            if (line is null) { Console.Error.WriteLine("microui: stdin closed before receiving html command"); return; }
+            if (string.IsNullOrWhiteSpace(line)) continue;
             try
             {
-                DispatchCommand(window, line);
+                using var doc = JsonDocument.Parse(line);
+                var type = doc.RootElement.GetProperty("type").GetString() ?? "";
+                if (type == "html")
+                {
+                    var cmd = JsonSerializer.Deserialize(line, MicroUIJsonContext.Default.HtmlCommand);
+                    if (cmd is not null && !string.IsNullOrEmpty(cmd.Html))
+                        initialHtml = Encoding.UTF8.GetString(Convert.FromBase64String(cmd.Html));
+                }
+                else
+                {
+                    Console.Error.WriteLine($"microui: ignoring pre-window command '{type}' — send html first");
+                }
             }
-            catch (JsonException ex)
+            catch (Exception ex)
             {
-                Console.Error.WriteLine($"microui: invalid command JSON — {ex.Message}");
+                Console.Error.WriteLine($"microui: invalid initial command — {ex.Message}");
             }
         }
-    }
-    catch (OperationCanceledException) { /* normal shutdown */ }
-    finally
-    {
-        window.Close();
-    }
-}, cts.Token);
 
-// ---------- Run the window (blocks until closed) ----------
+        using var window = new WindowManager(opts, Emit, initialHtml);
 
-window.Run();
-cts.Cancel();
-
-// Wait for the stdin loop to finish
-try { await stdinTask; } catch (OperationCanceledException) { /* ok */ }
-
-// ---------- Helpers ----------
-
-static void DispatchCommand(WindowManager window, string line)
-{
-    using var doc = JsonDocument.Parse(line);
-    var type = doc.RootElement.GetProperty("type").GetString() ?? "";
-
-    switch (type)
-    {
-        case "html":
+        // Stdin command loop on background thread
+        var cts = new CancellationTokenSource();
+        var stdinThread = new Thread(() =>
         {
-            var cmd = JsonSerializer.Deserialize(line, MicroUIJsonContext.Default.HtmlCommand);
-            if (cmd is not null && !string.IsNullOrEmpty(cmd.Html))
+            try
             {
-                window.LoadHtml(cmd.Html);
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    var line = Console.In.ReadLine();
+                    if (line is null) break;
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    try { DispatchCommand(window, line); }
+                    catch (JsonException ex) { Console.Error.WriteLine($"microui: invalid command JSON — {ex.Message}"); }
+                }
             }
-            break;
-        }
-        case "eval":
+            catch { /* shutdown */ }
+            finally { window.Close(); }
+        });
+        stdinThread.IsBackground = true;
+        stdinThread.Start();
+
+        // Block on UI message pump (must be STA main thread)
+        window.Run();
+        cts.Cancel();
+    }
+
+    static void DispatchCommand(WindowManager window, string line)
+    {
+        using var doc = JsonDocument.Parse(line);
+        var type = doc.RootElement.GetProperty("type").GetString() ?? "";
+
+        switch (type)
         {
-            var cmd = JsonSerializer.Deserialize(line, MicroUIJsonContext.Default.EvalCommand);
-            if (cmd is not null && !string.IsNullOrEmpty(cmd.Js))
+            case "html":
             {
-                window.EvalJs(cmd.Js);
+                var cmd = JsonSerializer.Deserialize(line, MicroUIJsonContext.Default.HtmlCommand);
+                if (cmd is not null && !string.IsNullOrEmpty(cmd.Html))
+                    window.LoadHtml(cmd.Html);
+                break;
             }
-            break;
-        }
-        case "show":
-        {
-            var cmd = JsonSerializer.Deserialize(line, MicroUIJsonContext.Default.ShowCommand);
-            window.Show(cmd?.Title);
-            break;
-        }
-        case "close":
-        {
-            window.Close();
-            break;
-        }
-        default:
-            Console.Error.WriteLine($"microui: unknown command type '{type}'");
-            break;
-    }
-}
-
-static CliOptions ParseArgs(string[] args)
-{
-    int width = 800;
-    int height = 600;
-    string title = "Genesis";
-    bool frameless = false;
-    bool floating = false;
-    bool hidden = false;
-    bool autoClose = false;
-
-    for (int i = 0; i < args.Length; i++)
-    {
-        switch (args[i])
-        {
-            case "--width" when i + 1 < args.Length:
-                width = int.TryParse(args[++i], out var w) ? w : width;
+            case "eval":
+            {
+                var cmd = JsonSerializer.Deserialize(line, MicroUIJsonContext.Default.EvalCommand);
+                if (cmd is not null && !string.IsNullOrEmpty(cmd.Js))
+                    window.EvalJs(cmd.Js);
                 break;
-            case "--height" when i + 1 < args.Length:
-                height = int.TryParse(args[++i], out var h) ? h : height;
+            }
+            case "show":
+            {
+                var cmd = JsonSerializer.Deserialize(line, MicroUIJsonContext.Default.ShowCommand);
+                window.Show(cmd?.Title);
                 break;
-            case "--title" when i + 1 < args.Length:
-                title = args[++i];
+            }
+            case "close":
+            {
+                window.Close();
                 break;
-            case "--frameless":
-                frameless = true;
-                break;
-            case "--floating":
-                floating = true;
-                break;
-            case "--hidden":
-                hidden = true;
-                break;
-            case "--auto-close":
-                autoClose = true;
+            }
+            default:
+                Console.Error.WriteLine($"microui: unknown command type '{type}'");
                 break;
         }
     }
 
-    return new CliOptions
+    static CliOptions ParseArgs(string[] args)
     {
-        Width = width,
-        Height = height,
-        Title = title,
-        Frameless = frameless,
-        Floating = floating,
-        Hidden = hidden,
-        AutoClose = autoClose,
-    };
+        int width = 800, height = 600;
+        string title = "Genesis";
+        bool frameless = false, floating = false, hidden = false, autoClose = false;
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--width" when i + 1 < args.Length: width = int.TryParse(args[++i], out var w) ? w : width; break;
+                case "--height" when i + 1 < args.Length: height = int.TryParse(args[++i], out var h) ? h : height; break;
+                case "--title" when i + 1 < args.Length: title = args[++i]; break;
+                case "--frameless": frameless = true; break;
+                case "--floating": floating = true; break;
+                case "--hidden": hidden = true; break;
+                case "--auto-close": autoClose = true; break;
+            }
+        }
+
+        return new CliOptions
+        {
+            Width = width, Height = height, Title = title,
+            Frameless = frameless, Floating = floating,
+            Hidden = hidden, AutoClose = autoClose,
+        };
+    }
 }

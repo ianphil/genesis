@@ -23,17 +23,20 @@ Download the pre-built binary for your platform from the [releases page](https:/
 | macOS (Intel) | `bin/osx-x64/microui` |
 | Linux    | `bin/linux-x64/microui` |
 
-### 2. Build from source (requires [.NET 8 SDK](https://dotnet.microsoft.com/download))
+### 2. Build from source (requires [.NET 8+ SDK](https://dotnet.microsoft.com/download))
+
+**NativeAOT** (single binary, requires C++ build tools / Desktop Development workload in Visual Studio):
 
 ```bash
-# macOS (Apple Silicon)
-dotnet publish src/MicroUI/MicroUI.csproj -r osx-arm64 -c Release /p:PublishAot=true -o bin/osx-arm64
+dotnet publish src/MicroUI/MicroUI.csproj -r win-x64   -c Release /p:PublishAot=true -o bin/win-x64
+dotnet publish src/MicroUI/MicroUI.csproj -r osx-arm64  -c Release /p:PublishAot=true -o bin/osx-arm64
+dotnet publish src/MicroUI/MicroUI.csproj -r linux-x64  -c Release /p:PublishAot=true -o bin/linux-x64
+```
 
-# Windows
-dotnet publish src/MicroUI/MicroUI.csproj -r win-x64 -c Release /p:PublishAot=true -o bin/win-x64
+**Self-contained** (no AOT, no C++ tools needed, larger output):
 
-# Linux
-dotnet publish src/MicroUI/MicroUI.csproj -r linux-x64 -c Release /p:PublishAot=true -o bin/linux-x64
+```bash
+dotnet publish src/MicroUI/MicroUI.csproj -r win-x64 -c Release /p:PublishAot=false --self-contained -o bin/win-x64
 ```
 
 > **Linux prerequisite:** `sudo apt-get install libwebkit2gtk-4.1-dev` (or equivalent for your distro)
@@ -141,6 +144,8 @@ microui_show:
 
 MicroUI communicates over **JSON Lines** on stdin/stdout. You don't need to use this directly — the tools handle it — but it's useful for scripting.
 
+> **Important:** The binary reads stdin **synchronously** on startup, blocking until it receives the first `html` command. Send the HTML immediately after spawning — no delay needed.
+
 ### Commands (stdin → MicroUI)
 
 ```json
@@ -196,12 +201,31 @@ MicroUI communicates over **JSON Lines** on stdin/stdout. You don't need to use 
 1. Agent calls `microui_show` with HTML content
 2. Tool spawns the `microui` binary as a child process
 3. HTML is base64-encoded and sent as a JSON Lines command on stdin
-4. MicroUI opens a native WebView window and loads the HTML
-5. Bridge script (`window.genesis`) is injected into every page
-6. Page can call `window.genesis.send(data)` → event fires on stdout → agent receives it
-7. Agent calls `microui_update` to change content or `microui_close` to dismiss
+4. MicroUI reads the first `html` command **synchronously** before opening the window
+5. HTML is written to a temp file and loaded via `file://` URI (see Platform Notes below)
+6. Bridge script (`window.genesis`) is injected into every page
+7. Page can call `window.genesis.send(data)` → event fires on stdout → agent receives it
+8. Agent calls `microui_update` to change content or `microui_close` to dismiss
 
 No HTTP server. No browser tabs. Native windows only.
+
+## Platform Notes
+
+### Windows — WebView2
+
+- **`[STAThread]` is required.** WebView2 uses COM and must run on a Single-Threaded Apartment thread. Without this, the window opens but renders a blank white page. The entry point uses `[STAThread]` on `Main()`.
+- **`LoadRawString` is unreliable.** Photino's `LoadRawString()` sometimes fails to render content with WebView2. The workaround is to write HTML to a temp file and use `.Load(path)` which navigates via a `file://` URI. Temp files are created in `%TEMP%` with a GUID name.
+- **NativeAOT requires the C++ Desktop Development workload** in Visual Studio. If unavailable, build with `/p:PublishAot=false --self-contained` instead.
+
+### macOS — WKWebView
+
+- Should work with both `LoadRawString` and file-based loading.
+- NativeAOT compiles without additional tooling.
+
+### Linux — WebKitGTK
+
+- Requires `libwebkit2gtk-4.1-dev` (Ubuntu/Debian) or equivalent.
+- Same file-based loading strategy applies for consistency.
 
 ## Comparison
 
@@ -213,7 +237,8 @@ No HTTP server. No browser tabs. Native windows only.
 | **WebView** | System browser | WebView2 / WKWebView / WebKitGTK |
 | **Frameless** | No | Yes |
 | **Always on top** | No | Yes |
-| **Binary required** | No | Yes (Photino .NET) |
+| **Binary required** | No | Yes (.NET 8+) |
+| **Build tools** | None | .NET SDK (+ C++ tools for AOT) |
 | **Startup** | Browser launch | ~100–300ms |
 
 Use **Canvas** when you want a full browser tab experience.  
