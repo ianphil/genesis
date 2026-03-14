@@ -141,51 +141,73 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - **Don't skip tests** — if tests exist for the code you changed, run them
 - **Don't modify `registry.json` by hand** — it's managed by the upgrade script
 
+## Genesis Packages
+
+Genesis packages are third-party GitHub repositories that follow the genesis registry format. They let any agent install extensions and skills beyond what the genesis template provides.
+
+### What makes a genesis package
+
+A GitHub repository is a genesis package if it contains:
+
+- A `.github/registry.json` declaring extensions and/or skills using the same format as the genesis template registry
+- The corresponding extension and/or skill directories at the paths declared in the registry
+
+For discoverability, add the `genesis-package` topic to the repository.
+
+### How packages work
+
+- Packages are installed via `packages.js` (the `packages` skill)
+- Installed items are tracked in both the `packages[]` array and the top-level `extensions`/`skills` in `registry.json`, with a `package` field indicating their origin
+- Template-owned items are authoritative — a package cannot overwrite an extension or skill that already exists from `ianphil/genesis` or another package
+- See `docs/packages.md` for the full spec
+
+### Contributing a package-related change
+
+- Changes to `packages.js` or `SKILL.md` follow the same branch and PR workflow as any other skill
+- The `packages[]` array in the genesis template's `registry.json` should remain empty — the template is the source, not a consumer
+
 ## Release Channels
 
-Genesis publishes two release channels:
+Genesis uses a single stable branch with experimental items available as packages:
 
-| Channel | Branch | Contents | Audience |
+| Channel | Source | Contents | Audience |
 |---------|--------|----------|----------|
-| **main** | `main` | Stable extensions and skills only | All agents |
-| **frontier** | `frontier` | Everything in main + experimental items | Opt-in agents |
+| **main** | `main` branch | Stable extensions and skills | All agents |
+| **frontier** | [`ianphil/genesis-frontier`](https://github.com/ianphil/genesis-frontier) | Experimental extensions and skills | Opt-in agents (via packages) |
 
 ### How it works
 
 - `main` is the stable trunk — lean and reliable
-- `frontier` is a **superset** that always rebases on `main`
-- New extensions and skills land on `frontier` first
-- When an item stabilizes, it graduates to `main` via PR
+- Experimental items live in the **genesis-frontier** package repo
+- Agents install frontier items via the packages skill: `install ianphil/genesis-frontier`
+- When an item stabilizes, it graduates from the package repo to `main`
 
-### Adding new items
+### Adding new experimental items
 
-1. Create a feature branch from `frontier`
+1. Create a feature branch in **ianphil/genesis-frontier**
 2. Add your extension or skill
 3. Update `registry.json` on your branch (add the new entry)
-4. PR into `frontier` — this makes it available to frontier agents on next upgrade
+4. PR into `main` of genesis-frontier — available to package users immediately
 
 ### Graduating items to main
 
 1. Confirm the item is stable (tested, no breaking changes, used by frontier agents)
-2. Create a feature branch from `main`: `git checkout main && git checkout -b feature/graduate-<name>`
-3. Pull only the graduating item: `git checkout frontier -- .github/extensions/<name>/` (or `skills/`)
+2. Create a feature branch from `main` in **ianphil/genesis**: `git checkout main && git checkout -b feature/graduate-<name>`
+3. Copy the graduating item from genesis-frontier (or the local install)
 4. Add the entry to `registry.json` and bump the version
-5. Update `README.md` — move the item from the frontier table to the main extensions table
+5. Update `README.md` — add the item to the main tables
 6. Commit, push, and open a PR against `main`
-7. After merge, rebase frontier on main (see below) — expect a conflict on `registry.json`; resolve by keeping frontier's extra items with main's new version number
+7. After merge, remove the item from genesis-frontier's registry (optional — the upgrade skill auto-promotes package→template overlaps)
 
-### Branch management
+### Migrating from frontier branch
 
-- **`frontier` always rebases on `main`** — never merge main into frontier
-- **Rebase frontier after every merge to main** — bug fixes, version bumps, docs updates, graduations. Small frequent rebases are painless; big ones after weeks of drift are not.
-- Keep the two registries consistent — main's items should always be a subset of frontier
+If your agent was using `channel: "frontier"`, run the migrate command to switch to the package model:
 
 ```bash
-# After every merge to main:
-git checkout frontier
-git rebase main
-git push --force-with-lease
+node .github/skills/upgrade/upgrade.js migrate --source ianphil/genesis-frontier
 ```
+
+This rewrites your registry: non-template items get assigned to the package, and your channel switches to `main`. No files move — it's a pure registry rewrite.
 
 ## License
 
