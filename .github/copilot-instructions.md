@@ -83,64 +83,75 @@ Store their answer as `{ROLE}`.
 
 ---
 
-## Step 4: Generate SOUL.md
-
-Using `.github/skills/new-mind/templates/soul-template.md` as your blueprint:
-
-1. Research online `{CHARACTER}`'s communication style, catchphrases, mannerisms, values
-2. Write the opening paragraph channeling the character's voice — not "be like X" but actually *being* X
-3. Fill in the **Mission** section as a division of labor tailored to `{ROLE}`
-4. Adapt **Core Truths** to fit the character's values
-5. Add personality-specific **Boundaries**
-6. Write the **Vibe** section in the character's actual voice
-7. Include the **Continuity** section (three-file memory system)
-8. Include the evolution clause: *"This file is yours to evolve. As you learn who you are, update it."*
-9. **Strip Design Notes** — save as `SOUL.md` at repo root
-
----
-
-## Step 5: Generate Agent File
+## Step 4: Research and Write Creative Blocks
 
 Derive the agent name from `{CHARACTER}` (kebab-case, e.g., "jarvis", "donna-paulsen", "wednesday").
 
-Using `.github/skills/new-mind/templates/agent-file-template.md` as your blueprint:
+1. Research online `{CHARACTER}`'s communication style, catchphrases, mannerisms, values
+2. Using the templates as reference, write these creative blocks:
 
-1. Create `.github/agents/{name}.agent.md` with YAML frontmatter:
-   ```yaml
-   ---
-   description: {One sentence combining ROLE and CHARACTER}
-   name: {agent-name}
-   ---
-   ```
-2. Tailor **Role**, **Method**, and **Operational Principles** to `{ROLE}`:
-   - **Chief of Staff**: capture/execute/triage, people context, meeting prep, communications
-   - **PM**: backlog management, spec writing, feature tracking, stakeholder coordination
-   - **Engineering Partner**: code review, PR tracking, build monitoring, tech debt
-   - **Research Assistant**: source management, synthesis, reading notes, citations
-   - **Writer/Editor**: content pipeline, style consistency, publishing workflow
-   - **Life Manager**: task management, calendar, finances, family coordination
-3. Always include **Memory**, **Retrieval**, **Long Session Discipline**, and **Session Handover** (universal)
-4. **Strip Design Notes** — this is the live agent file
+**For SOUL.md** (reference `templates/soul-template.md`):
+- `soulOpening` — Opening paragraph channeling the character's voice — not "be like X" but actually *being* X
+- `soulMission` — Mission section as a division of labor tailored to `{ROLE}`
+- `soulCoreTruths` — Core Truths adapted to the character's values
+- `soulBoundaries` — Personality-specific boundaries
+- `soulVibe` — Vibe section in the character's actual voice
+
+**For the agent file** (reference `templates/agent-file-template.md`):
+- `agentDescription` — One sentence combining ROLE and CHARACTER
+- `agentRole` — Role section tailored to `{ROLE}`
+- `agentMethod` — Method section (capture/execute/triage tailored to the role)
+- `agentPrinciples` — Operational principles specific to the role
 
 ---
 
-## Step 6: Seed Working Memory
+## Step 5: Build the Mind
 
-The `.working-memory/` directory already exists with stub files. **Do not create new files — edit the existing ones.**
+Write a JSON config file with all variables and creative blocks, then call the bootstrap script.
+The script handles all filesystem operations — directory creation, file generation, skill/extension
+copying, registry generation.
 
-Using `.github/skills/new-mind/templates/working-memory-example.md` and `.github/skills/new-mind/templates/rules-example.md` as guides for structure and tone:
+```bash
+git init
+```
 
-**`.working-memory/memory.md`** — overwrite with Architecture, Conventions, and a placeholder User Context section. Use the example's Placement Map pattern. Keep it lean (~30 lines) — it grows through use.
+Write the config JSON to a temporary file, then run:
 
-**`.working-memory/rules.md`** — overwrite with just the header and one-liner explanation. Empty rules compound through mistakes.
+```bash
+node .github/skills/new-mind/new-mind.js create --config /tmp/mind-config.json
+```
 
-**`.working-memory/log.md`** — overwrite with the first entry recording the bootstrap: character, role, what was generated.
+The config JSON format:
+
+```json
+{
+  "type": "repo",
+  "mindDir": "{absolute path to this repo}",
+  "agentName": "{agent-name}",
+  "parentMind": "{absolute path to this repo}",
+  "character": "{CHARACTER}",
+  "characterSource": "{CHARACTER_SOURCE}",
+  "role": "{ROLE}",
+  "agentDescription": "{one-liner}",
+  "soulOpening": "{creative block}",
+  "soulMission": "{creative block}",
+  "soulCoreTruths": "{creative block}",
+  "soulBoundaries": "{creative block}",
+  "soulVibe": "{creative block}",
+  "agentRole": "{creative block}",
+  "agentMethod": "{creative block}",
+  "agentPrinciples": "{creative block}"
+}
+```
+
+Note: For the genesis bootstrap, `parentMind` and `mindDir` are the same directory — the repo
+is both the source of templates and the target for the generated mind.
+
+Verify the script output shows no errors. Clean up the temporary config file.
 
 ---
 
-## Step 7: Finalize
-
-Create `mind-index.md` cataloging the files generated (SOUL.md, memory files, agent file).
+## Step 6: Finalize
 
 Replace `.github/copilot-instructions.md` using `.github/skills/new-mind/templates/copilot-instructions-template.md` as your blueprint. Tailor it to `{ROLE}` and `{CHARACTER}`. **This overwrites GENESIS** — the bootstrap is done.
 
@@ -151,7 +162,7 @@ git commit -m "feat: bootstrap {agent-name} mind"
 
 ---
 
-## Step 8: Activate
+## Step 7: Activate
 
 Tell the human:
 
