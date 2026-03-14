@@ -3,10 +3,23 @@
 // Zero dependencies. Requires: Node.js 18+.
 //
 // Usage:
-//   node new-mind.js create --config config.json
+//   node new-mind.js create --config-dir ./mind-config/
+//   node new-mind.js create --config config.json          (legacy JSON mode)
 //
-// The config JSON provides all variables and creative blocks. The agent writes
-// the config after the interview, then calls this script to do all filesystem ops.
+// Config directory mode (preferred):
+//   config.json          — simple fields (type, name, role, etc.)
+//   soul-opening.md      — creative block: SOUL.md opening paragraph
+//   soul-mission.md      — creative block: Mission section
+//   soul-core-truths.md  — creative block: Core Truths
+//   soul-boundaries.md   — creative block: Boundaries
+//   soul-vibe.md         — creative block: Vibe section
+//   agent-description.txt — one-liner agent description
+//   agent-role.md        — creative block: Role section
+//   agent-method.md      — creative block: Method section
+//   agent-principles.md  — creative block: Operational principles
+//
+// The agent writes each creative block as a separate file (no JSON escaping),
+// then calls this script to do all filesystem ops.
 
 const fs = require("fs");
 const path = require("path");
@@ -35,6 +48,38 @@ function mapPathForLayout(remotePath, layout) {
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
+}
+
+// ── Config Directory Reader ──────────────────────────────────────────────────
+
+const CREATIVE_BLOCK_FILES = {
+  "soul-opening.md": "soulOpening",
+  "soul-mission.md": "soulMission",
+  "soul-core-truths.md": "soulCoreTruths",
+  "soul-boundaries.md": "soulBoundaries",
+  "soul-vibe.md": "soulVibe",
+  "agent-description.txt": "agentDescription",
+  "agent-role.md": "agentRole",
+  "agent-method.md": "agentMethod",
+  "agent-principles.md": "agentPrinciples",
+};
+
+function readConfigDir(dirPath) {
+  const configJsonPath = path.join(dirPath, "config.json");
+  if (!fs.existsSync(configJsonPath)) {
+    throw new Error(`config.json not found in ${dirPath}`);
+  }
+
+  const config = JSON.parse(fs.readFileSync(configJsonPath, "utf8"));
+
+  for (const [filename, key] of Object.entries(CREATIVE_BLOCK_FILES)) {
+    const filePath = path.join(dirPath, filename);
+    if (fs.existsSync(filePath)) {
+      config[key] = fs.readFileSync(filePath, "utf8").trimEnd();
+    }
+  }
+
+  return config;
 }
 
 // ── Directory Structure ──────────────────────────────────────────────────────
@@ -822,11 +867,13 @@ module.exports = {
   installSharedResources,
   copyDirRecursive,
   mapPathForLayout,
+  readConfigDir,
   COMMON_DIRS,
   REPO_DIRS,
   USER_DIRS,
   SKILLS_TO_COPY,
   EXTENSIONS_TO_COPY,
+  CREATIVE_BLOCK_FILES,
 };
 
 // ── CLI entry ────────────────────────────────────────────────────────────────
@@ -839,18 +886,30 @@ if (require.main === module) {
     process.exit(1);
   }
 
-  const configFlagIdx = args.indexOf("--config");
-  if (configFlagIdx === -1 || !args[configFlagIdx + 1]) {
-    console.error(JSON.stringify({ error: "Usage: node new-mind.js create --config config.json" }));
-    process.exit(1);
-  }
-
-  const configPath = args[configFlagIdx + 1];
   let config;
-  try {
-    config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-  } catch (e) {
-    console.error(JSON.stringify({ error: `Failed to read config: ${e.message}` }));
+
+  // Prefer --config-dir over --config
+  const configDirIdx = args.indexOf("--config-dir");
+  const configFlagIdx = args.indexOf("--config");
+
+  if (configDirIdx !== -1 && args[configDirIdx + 1]) {
+    try {
+      config = readConfigDir(args[configDirIdx + 1]);
+    } catch (e) {
+      console.error(JSON.stringify({ error: `Failed to read config dir: ${e.message}` }));
+      process.exit(1);
+    }
+  } else if (configFlagIdx !== -1 && args[configFlagIdx + 1]) {
+    try {
+      config = JSON.parse(fs.readFileSync(args[configFlagIdx + 1], "utf8"));
+    } catch (e) {
+      console.error(JSON.stringify({ error: `Failed to read config: ${e.message}` }));
+      process.exit(1);
+    }
+  } else {
+    console.error(JSON.stringify({
+      error: "Usage: node new-mind.js create --config-dir ./mind-config/ (or --config config.json)",
+    }));
     process.exit(1);
   }
 

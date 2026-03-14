@@ -145,36 +145,13 @@ Set `{MIND_DIR}` = `{MIND_PATH}` (repo mind) or `{MIND_HOME}` (user mind).
 Read templates from `{PARENT_MIND}/.github/skills/new-mind/templates/` for reference — they
 show the patterns and structure for each file. Use them as guides when writing creative blocks.
 
-### 6.1 Write Creative Blocks
+### 6.1 Write Creative Blocks as Files
 
-Using the templates as guides, write the following creative content:
+Create a config directory at `{MIND_DIR}/.mind-config/`. Use your **file creation tool** (not
+shell commands) to write each creative block as a separate file. This avoids all escaping issues
+with quotes, backticks, em-dashes, and other special characters in markdown.
 
-**For SOUL.md** (reference `templates/soul-template.md`):
-- `soulOpening` — Opening paragraph channeling `{CHARACTER}`'s voice. Not "be like X" but actually *being* X
-- `soulMission` — Mission section tailored to `{ROLE}` and `{CHARACTER}`'s values
-- `soulCoreTruths` — Core Truths adapted to the character
-- `soulBoundaries` — Personality-specific boundaries
-- `soulVibe` — Vibe section in the character's actual voice
-
-**For the agent file** (reference `templates/agent-file-template.md` or `agent-file-user-template.md`):
-- `agentRole` — Role section tailored to `{ROLE}`
-- `agentMethod` — Method section (capture/execute/triage details for the role)
-- `agentPrinciples` — Operational principles specific to the role
-- `agentDescription` — One-sentence description combining `{ROLE}` and `{CHARACTER}`
-
-### 6.2 Build Config and Run Script
-
-Write a JSON config file containing all variables and creative blocks, then call the
-bootstrap script. The script handles all filesystem operations: directory creation,
-file generation, skill/extension copying, registry generation, and shared resource
-installation (for user minds).
-
-```bash
-cd {MIND_DIR}
-git init
-```
-
-Write the config JSON to a temporary file:
+**`.mind-config/config.json`** — simple fields only (no creative content):
 
 ```json
 {
@@ -185,32 +162,45 @@ Write the config JSON to a temporary file:
   "userCopilotDir": "~/.copilot",
   "character": "{CHARACTER}",
   "characterSource": "{CHARACTER_SOURCE}",
-  "role": "{ROLE}",
-  "agentDescription": "{one-liner}",
-  "soulOpening": "{creative block}",
-  "soulMission": "{creative block}",
-  "soulCoreTruths": "{creative block}",
-  "soulBoundaries": "{creative block}",
-  "soulVibe": "{creative block}",
-  "agentRole": "{creative block}",
-  "agentMethod": "{creative block}",
-  "agentPrinciples": "{creative block}"
+  "role": "{ROLE}"
 }
 ```
 
-Then run the script:
+Note: `userCopilotDir` is only needed for user minds. Omit it for repo minds.
+
+**Creative block files** — one file per block, written with the file creation tool:
+
+| File | Template Reference | Content |
+|------|--------------------|---------|
+| `.mind-config/soul-opening.md` | `soul-template.md` | Opening paragraph channeling `{CHARACTER}`'s voice. Include `# {Character} — Soul` heading. |
+| `.mind-config/soul-mission.md` | `soul-template.md` | Mission section tailored to `{ROLE}` |
+| `.mind-config/soul-core-truths.md` | `soul-template.md` | Core Truths adapted to the character's values |
+| `.mind-config/soul-boundaries.md` | `soul-template.md` | Personality-specific boundaries |
+| `.mind-config/soul-vibe.md` | `soul-template.md` | Vibe section in the character's actual voice |
+| `.mind-config/agent-description.txt` | — | One sentence combining `{ROLE}` and `{CHARACTER}` |
+| `.mind-config/agent-role.md` | `agent-file-template.md` | Role section tailored to `{ROLE}` |
+| `.mind-config/agent-method.md` | `agent-file-template.md` | Method section (capture/execute/triage for the role) |
+| `.mind-config/agent-principles.md` | `agent-file-template.md` | Operational principles specific to the role |
+
+### 6.2 Run the Bootstrap Script
 
 ```bash
-node {PARENT_MIND}/.github/skills/new-mind/new-mind.js create --config /tmp/mind-config.json
+cd {MIND_DIR}
+git init
+node {PARENT_MIND}/.github/skills/new-mind/new-mind.js create --config-dir .mind-config
 ```
+
+The script reads the config directory, then handles all filesystem operations: directory creation,
+file generation, skill/extension copying, registry generation, and shared resource installation
+(for user minds, using the create-if-missing pattern).
 
 The script outputs JSON with the list of created files. Verify it completed without errors.
 
-Clean up the temporary config file after the script completes.
+Clean up the config directory after the script completes:
 
-**For user minds**, the script also handles Phase 7 (shared resources at `~/.copilot/`)
-using the create-if-missing pattern — it installs skills, extensions, and registry only
-if they don't already exist.
+```bash
+rm -rf .mind-config
+```
 
 ---
 

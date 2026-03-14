@@ -24,11 +24,13 @@ const {
   generateRegistryObject,
   installSharedResources,
   mapPathForLayout,
+  readConfigDir,
   COMMON_DIRS,
   REPO_DIRS,
   USER_DIRS,
   SKILLS_TO_COPY,
   EXTENSIONS_TO_COPY,
+  CREATIVE_BLOCK_FILES,
 } = require("./new-mind.js");
 
 // ── Test Fixtures ────────────────────────────────────────────────────────────
@@ -109,6 +111,91 @@ function cleanup(...dirs) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
+
+// ── Config Directory Reader Tests ────────────────────────────────────────────
+
+describe("readConfigDir", () => {
+  let configDir;
+
+  before(() => {
+    configDir = fs.mkdtempSync(path.join(os.tmpdir(), "mind-config-"));
+  });
+
+  after(() => {
+    fs.rmSync(configDir, { recursive: true, force: true });
+  });
+
+  it("reads config.json and merges creative block files", () => {
+    const baseConfig = {
+      type: "repo",
+      mindDir: "/tmp/test-mind",
+      agentName: "test-bot",
+      parentMind: "/tmp/parent",
+      character: "TestBot",
+      characterSource: "Unit Tests",
+      role: "Testing Partner",
+    };
+    fs.writeFileSync(path.join(configDir, "config.json"), JSON.stringify(baseConfig));
+    fs.writeFileSync(path.join(configDir, "soul-opening.md"), "# TestBot — Soul\n\nI am TestBot.");
+    fs.writeFileSync(path.join(configDir, "soul-mission.md"), "Your human builds things.");
+    fs.writeFileSync(path.join(configDir, "agent-description.txt"), "Testing partner — precise and relentless");
+
+    const config = readConfigDir(configDir);
+
+    assert.equal(config.type, "repo");
+    assert.equal(config.agentName, "test-bot");
+    assert.equal(config.soulOpening, "# TestBot — Soul\n\nI am TestBot.");
+    assert.equal(config.soulMission, "Your human builds things.");
+    assert.equal(config.agentDescription, "Testing partner — precise and relentless");
+  });
+
+  it("trims trailing whitespace from creative blocks", () => {
+    const baseConfig = { type: "repo", agentName: "trim-test" };
+    fs.writeFileSync(path.join(configDir, "config.json"), JSON.stringify(baseConfig));
+    fs.writeFileSync(path.join(configDir, "soul-vibe.md"), "Sharp and fast.\n\n\n");
+
+    const config = readConfigDir(configDir);
+    assert.equal(config.soulVibe, "Sharp and fast.");
+  });
+
+  it("throws when config.json is missing", () => {
+    const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), "empty-config-"));
+    try {
+      assert.throws(() => readConfigDir(emptyDir), /config\.json not found/);
+    } finally {
+      fs.rmSync(emptyDir, { recursive: true, force: true });
+    }
+  });
+
+  it("works with only config.json (no creative block files)", () => {
+    const minimalDir = fs.mkdtempSync(path.join(os.tmpdir(), "minimal-config-"));
+    try {
+      fs.writeFileSync(
+        path.join(minimalDir, "config.json"),
+        JSON.stringify({ type: "repo", agentName: "minimal" })
+      );
+      const config = readConfigDir(minimalDir);
+      assert.equal(config.type, "repo");
+      assert.equal(config.soulOpening, undefined, "missing creative blocks should be undefined");
+    } finally {
+      fs.rmSync(minimalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves markdown formatting including backticks and special chars", () => {
+    const mdDir = fs.mkdtempSync(path.join(os.tmpdir(), "md-config-"));
+    try {
+      fs.writeFileSync(path.join(mdDir, "config.json"), JSON.stringify({ type: "repo" }));
+      const complexMd = "- **Bold** and `code`\n- Em dash — here\n- Backtick: \\`escaped\\`\n\n| Col1 | Col2 |\n|------|------|\n| a | b |";
+      fs.writeFileSync(path.join(mdDir, "agent-method.md"), complexMd);
+
+      const config = readConfigDir(mdDir);
+      assert.equal(config.agentMethod, complexMd);
+    } finally {
+      fs.rmSync(mdDir, { recursive: true, force: true });
+    }
+  });
+});
 
 // ── Template Engine Tests ────────────────────────────────────────────────────
 
@@ -688,6 +775,70 @@ describe("user shared resources idempotency", () => {
     } finally {
       cleanup(parent, userCopilotDir);
     }
+  });
+});
+
+// ── E2E: Config Directory Mode ───────────────────────────────────────────────
+
+describe("config directory E2E", () => {
+  let parent, mindDir, configDir;
+
+  before(() => {
+    parent = makeTempParent();
+    mindDir = fs.mkdtempSync(path.join(os.tmpdir(), "configdir-mind-"));
+    fs.rmSync(mindDir, { recursive: true });
+    configDir = fs.mkdtempSync(path.join(os.tmpdir(), "mind-config-e2e-"));
+
+    // Write config.json with only simple fields
+    fs.writeFileSync(
+      path.join(configDir, "config.json"),
+      JSON.stringify({
+        type: "repo",
+        mindDir,
+        agentName: "config-dir-bot",
+        parentMind: parent,
+        character: "DirBot",
+        characterSource: "E2E Tests",
+        role: "Testing Partner",
+      })
+    );
+
+    // Write each creative block as a separate file
+    fs.writeFileSync(path.join(configDir, "soul-opening.md"), "# DirBot — Soul\n\nI verify directories.");
+    fs.writeFileSync(path.join(configDir, "soul-mission.md"), "Your human builds. You check the dirs.");
+    fs.writeFileSync(path.join(configDir, "soul-core-truths.md"), "- **Every file has a place.** Find it.");
+    fs.writeFileSync(path.join(configDir, "soul-boundaries.md"), "- Never delete without asking.");
+    fs.writeFileSync(path.join(configDir, "soul-vibe.md"), "Methodical, thorough, slightly pedantic.");
+    fs.writeFileSync(path.join(configDir, "agent-description.txt"), "DirBot — directory-obsessed testing partner");
+    fs.writeFileSync(path.join(configDir, "agent-role.md"), "Testing partner for directory operations.");
+    fs.writeFileSync(path.join(configDir, "agent-method.md"), "**Capture**: Classify files.\n\n**Execute**: Verify structure.");
+    fs.writeFileSync(path.join(configDir, "agent-principles.md"), "- **Check before creating.** Always.");
+  });
+
+  after(() => cleanup(parent, mindDir, configDir));
+
+  it("creates a complete mind from config directory", () => {
+    const config = readConfigDir(configDir);
+    const result = createMind(config);
+
+    assert.ok(!result.error, `createMind failed: ${result.error}`);
+
+    // Verify creative blocks made it into the generated files
+    const soul = fs.readFileSync(path.join(mindDir, "SOUL.md"), "utf8");
+    assert.ok(soul.includes("I verify directories"), "SOUL.md missing soul-opening content");
+    assert.ok(soul.includes("Every file has a place"), "SOUL.md missing core truths content");
+
+    const agentFile = fs.readFileSync(
+      path.join(mindDir, ".github", "agents", "config-dir-bot.agent.md"), "utf8"
+    );
+    assert.ok(agentFile.includes("DirBot"), "agent file missing character name");
+    assert.ok(agentFile.includes("directory-obsessed"), "agent file missing description");
+    assert.ok(agentFile.includes("Check before creating"), "agent file missing principles");
+
+    // All structural files exist
+    assert.ok(fs.existsSync(path.join(mindDir, ".github", "registry.json")));
+    assert.ok(fs.existsSync(path.join(mindDir, "mind-index.md")));
+    assert.ok(fs.existsSync(path.join(mindDir, ".working-memory", "memory.md")));
   });
 });
 

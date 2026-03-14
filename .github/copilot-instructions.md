@@ -88,40 +88,13 @@ Store their answer as `{ROLE}`.
 Derive the agent name from `{CHARACTER}` (kebab-case, e.g., "jarvis", "donna-paulsen", "wednesday").
 
 1. Research online `{CHARACTER}`'s communication style, catchphrases, mannerisms, values
-2. Using the templates as reference, write these creative blocks:
+2. Using the templates as reference, write the creative blocks described below
 
-**For SOUL.md** (reference `templates/soul-template.md`):
-- `soulOpening` — Opening paragraph channeling the character's voice — not "be like X" but actually *being* X
-- `soulMission` — Mission section as a division of labor tailored to `{ROLE}`
-- `soulCoreTruths` — Core Truths adapted to the character's values
-- `soulBoundaries` — Personality-specific boundaries
-- `soulVibe` — Vibe section in the character's actual voice
+**Create a config directory** at `.mind-config/` in the repo root. Use your **file creation tool** (not shell commands) to write each file — this avoids all escaping issues with quotes, backticks, and special characters in markdown.
 
-**For the agent file** (reference `templates/agent-file-template.md`):
-- `agentDescription` — One sentence combining ROLE and CHARACTER
-- `agentRole` — Role section tailored to `{ROLE}`
-- `agentMethod` — Method section (capture/execute/triage tailored to the role)
-- `agentPrinciples` — Operational principles specific to the role
+### Config files to create:
 
----
-
-## Step 5: Build the Mind
-
-Write a JSON config file with all variables and creative blocks, then call the bootstrap script.
-The script handles all filesystem operations — directory creation, file generation, skill/extension
-copying, registry generation.
-
-```bash
-git init
-```
-
-Write the config JSON to a temporary file, then run:
-
-```bash
-node .github/skills/new-mind/new-mind.js create --config /tmp/mind-config.json
-```
-
-The config JSON format:
+**`.mind-config/config.json`** — simple fields only (no creative content):
 
 ```json
 {
@@ -131,31 +104,58 @@ The config JSON format:
   "parentMind": "{absolute path to this repo}",
   "character": "{CHARACTER}",
   "characterSource": "{CHARACTER_SOURCE}",
-  "role": "{ROLE}",
-  "agentDescription": "{one-liner}",
-  "soulOpening": "{creative block}",
-  "soulMission": "{creative block}",
-  "soulCoreTruths": "{creative block}",
-  "soulBoundaries": "{creative block}",
-  "soulVibe": "{creative block}",
-  "agentRole": "{creative block}",
-  "agentMethod": "{creative block}",
-  "agentPrinciples": "{creative block}"
+  "role": "{ROLE}"
 }
 ```
 
 Note: For the genesis bootstrap, `parentMind` and `mindDir` are the same directory — the repo
 is both the source of templates and the target for the generated mind.
 
-Verify the script output shows no errors. Clean up the temporary config file.
+**`.mind-config/soul-opening.md`** — Opening paragraph channeling the character's voice. Not "be like X" but actually *being* X. Include the `# {Character} — Soul` heading.
+
+**`.mind-config/soul-mission.md`** — Mission section as a division of labor tailored to `{ROLE}`
+
+**`.mind-config/soul-core-truths.md`** — Core Truths adapted to the character's values
+
+**`.mind-config/soul-boundaries.md`** — Personality-specific boundaries
+
+**`.mind-config/soul-vibe.md`** — Vibe section in the character's actual voice
+
+**`.mind-config/agent-description.txt`** — One sentence combining ROLE and CHARACTER
+
+**`.mind-config/agent-role.md`** — Role section tailored to `{ROLE}`
+
+**`.mind-config/agent-method.md`** — Method section (capture/execute/triage tailored to the role)
+
+**`.mind-config/agent-principles.md`** — Operational principles specific to the role
+
+---
+
+## Step 5: Build the Mind
+
+Run the bootstrap script. It reads the config directory, generates all files, copies skills and
+extensions, and creates the registry.
+
+```bash
+node .github/skills/new-mind/new-mind.js create --config-dir .mind-config
+```
+
+Verify the script output shows no errors (it prints JSON with the list of created files).
+
+Clean up the config directory:
+
+```bash
+rm -rf .mind-config
+```
 
 ---
 
 ## Step 6: Finalize
 
-Replace `.github/copilot-instructions.md` using `.github/skills/new-mind/templates/copilot-instructions-template.md` as your blueprint. Tailor it to `{ROLE}` and `{CHARACTER}`. **This overwrites GENESIS** — the bootstrap is done.
+Ensure you're on the `main` branch, then commit:
 
 ```bash
+git checkout -b main 2>/dev/null || git checkout main
 git add -A
 git commit -m "feat: bootstrap {agent-name} mind"
 ```
