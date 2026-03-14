@@ -14,7 +14,7 @@ Inspired by [Glimpse](https://github.com/hazat/glimpse) (macOS-only, Swift), Mic
 
 ### 1. Install the binary
 
-Download the pre-built binary for your platform from the [releases page](https://github.com/ianphil/genesis/releases) and put it on your PATH, **or** set `MICROUI_BIN` to the full path.
+Download the pre-built binary for your platform from the [releases page](https://github.com/ianphil/genesis/releases) and place it in the standard location under this extension (`bin/{platform}/`). The extension tools resolve that location automatically, so you don't need to manually add MicroUI to your PATH unless you want a global install. `MICROUI_BIN` still overrides discovery if you want to point at a custom build.
 
 | Platform | Binary |
 |----------|--------|
@@ -23,7 +23,7 @@ Download the pre-built binary for your platform from the [releases page](https:/
 | macOS (Intel) | `bin/osx-x64/microui` |
 | Linux    | `bin/linux-x64/microui` |
 
-### 2. Build from source (requires [.NET 8+ SDK](https://dotnet.microsoft.com/download))
+### 2. Build from source (requires [.NET 10+ SDK](https://dotnet.microsoft.com/download))
 
 **NativeAOT** (single binary, requires C++ build tools / Desktop Development workload in Visual Studio):
 
@@ -40,6 +40,8 @@ dotnet publish src/MicroUI/MicroUI.csproj -r win-x64 -c Release /p:PublishAot=fa
 ```
 
 > **Linux prerequisite:** `sudo apt-get install libwebkit2gtk-4.1-dev` (or equivalent for your distro)
+>
+> **Why .NET 10?** The project now targets `net10.0` because transitive dependencies kept pulling .NET 10 assemblies, which caused `FileNotFoundException` at runtime on `net8.0` builds.
 
 ### 3. Use it
 
@@ -128,6 +130,22 @@ microui_update:
   js: "document.getElementById('bar').value = 75"
 ```
 
+### Native Copilot Chat
+
+Open a lightweight native chat window backed by the local responses extension:
+
+```bash
+microui --chat
+microui --chat --port 15210
+```
+
+Architecture:
+`chat.html` (WebView JS) → `fetch()` POST → `http://127.0.0.1:15210/v1/responses` → SSE stream → DOM update
+
+Requires the responses extension to be running. In chat mode, C# only hosts the window — all response traffic is JS ↔ HTTP.
+
+See [`docs/chat-guide.md`](docs/chat-guide.md) for the full streaming architecture and troubleshooting guide.
+
 ### Transparent HUD
 
 ```
@@ -166,6 +184,10 @@ MicroUI communicates over **JSON Lines** on stdin/stdout. You don't need to use 
 ### CLI Flags
 
 ```
+--chat             Launch embedded Copilot chat window
+--port N           Responses API port for chat mode (default: 15210)
+
+# Standard window mode
 --width N          Window width (default: 800)
 --height N         Window height (default: 600)
 --title STR        Window title (default: "Genesis")
@@ -179,15 +201,21 @@ MicroUI communicates over **JSON Lines** on stdin/stdout. You don't need to use 
 
 ```
 .github/extensions/microui/
+├── bin/
+│   └── {platform}/microui(.exe) # Standard binary location resolved by the tools
 ├── src/
 │   ├── MicroUI/
-│   │   ├── MicroUI.csproj      # .NET 8 project with NativeAOT
-│   │   ├── Program.cs          # Entry point — CLI args + stdin/stdout loop
+│   │   ├── MicroUI.csproj      # .NET 10 project with NativeAOT + embedded chat.html
+│   │   ├── Program.cs          # Entry point — CLI args, chat mode, stdin/stdout loop
 │   │   ├── Protocol.cs         # JSON Lines types (Command, Event)
 │   │   ├── BridgeScript.cs     # JavaScript bridge injected into pages
 │   │   ├── WindowManager.cs    # Photino window lifecycle
+│   │   ├── chat.html           # Embedded WebView chat client
 │   │   └── TrimmerRoots.xml    # NativeAOT trim preservation
 │   └── MicroUI.sln
+├── docs/
+│   ├── forms-guide.md          # Guide for structured forms and ask_user alternatives
+│   └── chat-guide.md           # Guide for chat mode architecture and usage
 ├── tools/
 │   └── microui-tools.mjs       # Genesis tools: microui_show/update/close/list
 ├── extension.mjs               # Copilot CLI extension entry point
@@ -207,7 +235,9 @@ MicroUI communicates over **JSON Lines** on stdin/stdout. You don't need to use 
 7. Page can call `window.genesis.send(data)` → event fires on stdout → agent receives it
 8. Agent calls `microui_update` to change content or `microui_close` to dismiss
 
-No HTTP server. No browser tabs. Native windows only.
+Standard window mode uses no HTTP server. No browser tabs. Native windows only.
+
+Chat mode takes a different path: `chat.html` is embedded into the binary, the port is injected at launch, and the page talks directly to `http://127.0.0.1:{port}/v1/responses` via `fetch()` + an SSE stream. In chat mode, C# only hosts the window — all response traffic is JS ↔ HTTP.
 
 ## Platform Notes
 
@@ -215,6 +245,8 @@ No HTTP server. No browser tabs. Native windows only.
 
 - **`[STAThread]` is required.** WebView2 uses COM and must run on a Single-Threaded Apartment thread. Without this, the window opens but renders a blank white page. The entry point uses `[STAThread]` on `Main()`.
 - **`LoadRawString` is unreliable.** Photino's `LoadRawString()` sometimes fails to render content with WebView2. The workaround is to write HTML to a temp file and use `.Load(path)` which navigates via a `file://` URI. Temp files are created in `%TEMP%` with a GUID name.
+- **`SendWebMessage()` corrupts string encoding.** On Windows/WebView2, Photino can turn C# → JS strings into garbled CJK text. We observed this both with direct `SendWebMessage()` calls and when the call path was marshaled through `Invoke()`. For chat mode, the workaround is to avoid C# → JS data transfer entirely: the WebView page calls the responses API directly with `fetch()`, and C# only hosts the window.
+- **The OpenAI .NET SDK bridge was removed.** We evaluated the OpenAI .NET SDK v2.9.1 `ResponsesClient`, but the Responses API surface is still experimental and the WebView2 message-corruption issue made the C# bridge architecture unworkable. Chat mode now uses direct JS ↔ HTTP communication instead.
 - **NativeAOT requires the C++ Desktop Development workload** in Visual Studio. If unavailable, build with `/p:PublishAot=false --self-contained` instead.
 
 ### macOS — WKWebView
@@ -237,8 +269,8 @@ No HTTP server. No browser tabs. Native windows only.
 | **WebView** | System browser | WebView2 / WKWebView / WebKitGTK |
 | **Frameless** | No | Yes |
 | **Always on top** | No | Yes |
-| **Binary required** | No | Yes (.NET 8+) |
-| **Build tools** | None | .NET SDK (+ C++ tools for AOT) |
+| **Binary required** | No | Yes (.NET 10+) |
+| **Build tools** | None | .NET 10+ SDK (+ C++ tools for AOT) |
 | **Startup** | Browser launch | ~100–300ms |
 
 Use **Canvas** when you want a full browser tab experience.  
