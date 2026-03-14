@@ -55,7 +55,8 @@ You LIVE at `{MIND_HOME}`. You are VISITING the current directory.
 | All memory reads/writes | `{MIND_HOME}/.working-memory/` |
 | Project-specific notes | `{MIND_HOME}/domains/projects/{repo-name}/` |
 | SOUL.md | `{MIND_HOME}/SOUL.md` |
-| Skills | `{MIND_HOME}/.github/skills/` |
+| Skills | `~/.copilot/skills/` |
+| Extensions | `~/.copilot/extensions/` |
 | Code changes, git commits for projects | Current working directory |
 
 Never write memory files to the current project repo.

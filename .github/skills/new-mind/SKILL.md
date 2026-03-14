@@ -123,6 +123,8 @@ git init
 
 ### 6.2 Create folder structure
 
+**For repo minds:**
+
 ```bash
 mkdir -p .working-memory
 mkdir -p domains/projects
@@ -136,10 +138,17 @@ mkdir -p .github/skills
 mkdir -p .github/extensions
 ```
 
-For user minds, also create:
+**For user minds** (no `.github/` — tooling lives at `~/.copilot/`):
 
 ```bash
+mkdir -p .working-memory
+mkdir -p domains/projects
+mkdir -p domains/people
 mkdir -p domains/minds
+mkdir -p initiatives
+mkdir -p expertise
+mkdir -p inbox
+mkdir -p Archive
 ```
 
 ### 6.3 Generate SOUL.md
@@ -212,8 +221,7 @@ For user minds, include a `## Mind Location` section:
 ## Mind Location
 - MIND_HOME: {MIND_HOME}
 - Agent file: ~/.copilot/agents/{AGENT_NAME}.agent.md
-- Shared commit skill: ~/.copilot/skills/commit/SKILL.md
-- Shared registry: ~/.copilot/registry.json
+- Shared tooling: ~/.copilot/ (skills, extensions, registry)
 - If you move this repo, update the agent file with the new path.
 ```
 
@@ -233,15 +241,11 @@ cp -r {PARENT_MIND}/.github/skills/upgrade {MIND_DIR}/.github/skills/upgrade
 cp -r {PARENT_MIND}/.github/skills/new-mind {MIND_DIR}/.github/skills/new-mind
 ```
 
-**For user minds**, the shared commit skill is handled in Phase 7. Copy only:
-
-```bash
-cp -r {PARENT_MIND}/.github/skills/daily-report {MIND_DIR}/.github/skills/daily-report
-cp -r {PARENT_MIND}/.github/skills/upgrade {MIND_DIR}/.github/skills/upgrade
-cp -r {PARENT_MIND}/.github/skills/new-mind {MIND_DIR}/.github/skills/new-mind
-```
+**For user minds**, skip this step. All skills are installed to `~/.copilot/skills/` in Phase 7.
 
 ### 6.8 Copy Extensions
+
+**For repo minds:**
 
 ```bash
 cp -r {PARENT_MIND}/.github/extensions/cron {MIND_DIR}/.github/extensions/cron
@@ -249,6 +253,8 @@ cp -r {PARENT_MIND}/.github/extensions/canvas {MIND_DIR}/.github/extensions/canv
 ```
 
 Where `{PARENT_MIND}` is the root of this mind's repository.
+
+**For user minds**, skip this step. All extensions are installed to `~/.copilot/extensions/` in Phase 7.
 
 ### 6.9 Generate registry.json
 
@@ -306,18 +312,25 @@ Create `{MIND_DIR}/mind-index.md` cataloging all generated files:
 - SOUL.md — path, description
 - Agent file — path, description
 - .working-memory/ — list of files
+
+**For repo minds**, also include:
 - .github/skills/ — list of skills
 - .github/extensions/ — list of extensions
-- .github/registry.json (repo minds only)
-- For user minds: agent file location at `~/.copilot/agents/{AGENT_NAME}.agent.md`
-- For user minds: shared commit skill at `~/.copilot/skills/commit/SKILL.md`
-- For user minds: shared registry at `~/.copilot/registry.json`
+- .github/registry.json
+
+**For user minds**, also include:
+- Shared tooling at `~/.copilot/` — skills, extensions, registry
+- Agent file at `~/.copilot/agents/{AGENT_NAME}.agent.md`
 
 ---
 
 ## Phase 7: User-Level Shared Resources (user mind only)
 
 Skip this phase for repo minds.
+
+All user-level tooling lives at `~/.copilot/` and is shared across all user-level agents.
+Each resource uses the **create-if-missing** pattern: install on the first user mind,
+skip on subsequent ones.
 
 ### 7.1 Ensure ~/.copilot directories exist
 
@@ -327,40 +340,59 @@ On Windows (PowerShell):
 ```powershell
 New-Item -ItemType Directory -Force -Path "$HOME\.copilot\agents"
 New-Item -ItemType Directory -Force -Path "$HOME\.copilot\skills\commit"
+New-Item -ItemType Directory -Force -Path "$HOME\.copilot\skills\daily-report"
+New-Item -ItemType Directory -Force -Path "$HOME\.copilot\skills\upgrade"
+New-Item -ItemType Directory -Force -Path "$HOME\.copilot\skills\new-mind"
+New-Item -ItemType Directory -Force -Path "$HOME\.copilot\extensions\cron"
+New-Item -ItemType Directory -Force -Path "$HOME\.copilot\extensions\canvas"
 ```
 
 On macOS/Linux:
 ```bash
 mkdir -p ~/.copilot/agents
-mkdir -p ~/.copilot/skills/commit
+mkdir -p ~/.copilot/skills/{commit,daily-report,upgrade,new-mind}
+mkdir -p ~/.copilot/extensions/{cron,canvas}
 ```
 
-### 7.2 Install shared commit skill (if needed)
+### 7.2 Install shared skills (if needed)
 
-Check whether the shared commit skill already exists:
+For each skill, check if it already exists. If missing, install from the parent mind.
+If present, skip and log.
 
-```powershell
-Test-Path "$HOME/.copilot/skills/commit/SKILL.md"
-```
+**Commit skill** — check `~/.copilot/skills/commit/SKILL.md`:
+- If missing: read `templates/commit-user-template.md`, write to `~/.copilot/skills/commit/SKILL.md`
+- The commit skill has NO hardcoded paths — it references `MIND_HOME` from session context
 
-(On Unix/macOS: `[ -f ~/.copilot/skills/commit/SKILL.md ] && echo "EXISTS" || echo "MISSING"`)
+**Daily report** — check `~/.copilot/skills/daily-report/SKILL.md`:
+- If missing: copy `{PARENT_MIND}/.github/skills/daily-report/` → `~/.copilot/skills/daily-report/`
 
-**If MISSING** — this is the first user-level mind. Install from the template:
+**Upgrade** — check `~/.copilot/skills/upgrade/SKILL.md`:
+- If missing: copy `{PARENT_MIND}/.github/skills/upgrade/` → `~/.copilot/skills/upgrade/`
 
-Read `templates/commit-user-template.md` and write it to `~/.copilot/skills/commit/SKILL.md`.
+**New mind** — check `~/.copilot/skills/new-mind/SKILL.md`:
+- If missing: copy `{PARENT_MIND}/.github/skills/new-mind/` → `~/.copilot/skills/new-mind/`
+  (this includes the `templates/` subdirectory)
 
-The skill must have NO hardcoded paths — it references `MIND_HOME` as a concept from the
-active agent's session context, not as a literal string. It is generic by design.
+Log each installation or skip to `{MIND_HOME}/.working-memory/log.md`:
+`[identity] bootstrap: installed shared skill {name} to ~/.copilot/skills/{name}/`
+`[identity] bootstrap: shared skill {name} already present — skipped`
 
-Log in `{MIND_HOME}/.working-memory/log.md`:
-`[identity] bootstrap: installed shared commit skill to ~/.copilot/skills/commit/SKILL.md`
+### 7.3 Install shared extensions (if needed)
 
-**If EXISTS** — the skill is already installed from a previous user mind. Skip installation.
+For each extension, check if it already exists. If missing, install from the parent mind.
+If present, skip and log.
 
-Log in `{MIND_HOME}/.working-memory/log.md`:
-`[identity] bootstrap: shared commit skill already present at ~/.copilot/skills/commit/SKILL.md — skipped`
+**Cron** — check `~/.copilot/extensions/cron/extension.mjs`:
+- If missing: copy `{PARENT_MIND}/.github/extensions/cron/` → `~/.copilot/extensions/cron/`
 
-### 7.3 Install shared registry (if needed)
+**Canvas** — check `~/.copilot/extensions/canvas/extension.mjs`:
+- If missing: copy `{PARENT_MIND}/.github/extensions/canvas/` → `~/.copilot/extensions/canvas/`
+
+Log each installation or skip to `{MIND_HOME}/.working-memory/log.md`:
+`[identity] bootstrap: installed shared extension {name} to ~/.copilot/extensions/{name}/`
+`[identity] bootstrap: shared extension {name} already present — skipped`
+
+### 7.4 Install shared registry (if needed)
 
 Check whether the shared registry already exists:
 
@@ -380,39 +412,41 @@ Test-Path "$HOME/.copilot/registry.json"
   "extensions": {
     "cron": {
       "version": "0.1.4",
-      "path": ".github/extensions/cron",
+      "path": "extensions/cron",
       "description": "Scheduled job execution — cron, interval, and one-shot with prompt and command payloads"
     },
     "canvas": {
       "version": "0.1.3",
-      "path": ".github/extensions/canvas",
+      "path": "extensions/canvas",
       "description": "Display rich HTML content in the browser with SSE live reload"
     }
   },
   "skills": {
     "commit": {
       "version": "0.1.0",
-      "path": "~/.copilot/skills/commit",
+      "path": "skills/commit",
       "description": "Stage, commit, push with working memory observations"
     },
     "daily-report": {
       "version": "0.1.0",
-      "path": ".github/skills/daily-report",
+      "path": "skills/daily-report",
       "description": "Morning briefing — ADO, Teams, calendar, email, mind next-actions"
     },
     "upgrade": {
       "version": "0.4.0",
-      "path": ".github/skills/upgrade",
+      "path": "skills/upgrade",
       "description": "Pull new extensions and skills from the genesis template registry"
     },
     "new-mind": {
       "version": "0.1.0",
-      "path": ".github/skills/new-mind",
+      "path": "skills/new-mind",
       "description": "Bootstrap new minds — repo-level or user-level"
     }
   }
 }
 ```
+
+All paths are relative to `~/.copilot/`.
 
 Log in `{MIND_HOME}/.working-memory/log.md`:
 `[identity] bootstrap: installed shared registry to ~/.copilot/registry.json`
@@ -488,10 +522,9 @@ Where `{PARENT_MIND}` is the root of this (the parent) mind's repository.
 
 > "Your mind is alive and available everywhere. 🧬
 >
-> **Three locations to know:**
-> - **Agent file**: `~/.copilot/agents/{AGENT_NAME}.agent.md` — who the agent is, where its mind lives
-> - **Mind repo**: `{MIND_HOME}` — all memory, knowledge, and skills
-> - **Shared resources**: `~/.copilot/` — commit skill, registry, shared by all user-level agents
+> **Two locations to know:**
+> - **Mind repo**: `{MIND_HOME}` — your identity (SOUL.md), memory, and knowledge
+> - **Shared tooling**: `~/.copilot/` — agent file, skills, extensions, registry (shared by all user-level agents)
 >
 > **To use it:** Open *any* directory. Run `copilot --experimental`. Type `/agent` and
 > select **{AGENT_NAME}**. The agent will load its identity, then shell out to read its
@@ -502,8 +535,7 @@ Where `{PARENT_MIND}` is the root of this (the parent) mind's repository.
 > - Project notes go to `{MIND_HOME}/domains/projects/{repo-name}/`
 > - When you commit, the skill commits *both* the project and the mind
 >
-> **Three user-level agents sharing one commit skill?** No conflict — each agent loaded its
-> own `MIND_HOME` at session start. The shared skill defers to whatever `MIND_HOME` is in
-> context.
+> **Multiple user-level agents?** No conflict — each agent has its own `MIND_HOME`.
+> Shared skills and extensions at `~/.copilot/` defer to whatever `MIND_HOME` is in context.
 >
 > It takes about a week to feel genuinely useful. Context compounds."
