@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "dgSpecHash": "IN2HfpEKYXs=",
+  "success": true,
+  "projectFilePath": "C:\\src\\genesis\\.github\\extensions\\microui\\src\\MicroUI\\MicroUI.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\ianphil\\.nuget\\packages\\photino.native\\3.1.5\\photino.native.3.1.5.nupkg.sha512",
+    "C:\\Users\\ianphil\\.nuget\\packages\\photino.net\\3.1.13\\photino.net.3.1.13.nupkg.sha512",
+    "C:\\Users\\ianphil\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\10.0.4\\microsoft.netcore.app.runtime.win-x64.10.0.4.nupkg.sha512",
+    "C:\\Users\\ianphil\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\10.0.4\\microsoft.windowsdesktop.app.runtime.win-x64.10.0.4.nupkg.sha512",
+    "C:\\Users\\ianphil\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\10.0.4\\microsoft.aspnetcore.app.runtime.win-x64.10.0.4.nupkg.sha512"
+  ],
+  "logs": []
+}
