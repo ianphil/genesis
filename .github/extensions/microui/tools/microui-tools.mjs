@@ -1,33 +1,208 @@
-// MicroUI tools — microui_show, microui_update, microui_close
+// MicroUI tools — microui_show, microui_update, microui_close, microui_list
 //
-// Spawns a native WebView window (via the MicroUI .NET binary) and
-// communicates with it over JSON Lines on stdin/stdout.
+// Architecture: Embedded HTTP/SSE server (Node built-in `http`) serves HTML
+// content to Photino native windows. Updates are pushed via Server-Sent Events,
+// avoiding Photino's broken SendWebMessage/LoadRawString on Windows.
 //
-// The binary must be on PATH or the MICROUI_BIN environment variable must
-// point to its full path. Pre-built binaries for win-x64, osx-arm64, and
-// linux-x64 are published as GitHub release assets.
+// Flow: microui_show → store HTML in memory → spawn microui.exe --url → window
+//       microui_update → update HTML in memory → push SSE reload event → WebView reloads
 
 import { spawn } from "node:child_process";
-import { Buffer } from "node:buffer";
-import { existsSync } from "node:fs";
+import { createServer } from "node:http";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// ---------- Binary resolution ----------
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const extRoot = resolve(__dirname, "..");
+
+// ---------- Binary resolution ----------
 
 function resolveBinary() {
   if (process.env.MICROUI_BIN) return process.env.MICROUI_BIN;
   const name = process.platform === "win32" ? "microui.exe" : "microui";
-
-  // Check for binary relative to extension root (../bin/{platform}/)
-  const extRoot = resolve(__dirname, "..");
   const platDir = `${process.platform === "win32" ? "win" : process.platform === "darwin" ? "osx" : "linux"}-${process.arch === "arm64" ? "arm64" : "x64"}`;
   const localBin = resolve(extRoot, "bin", platDir, name);
   if (existsSync(localBin)) return localBin;
+  return name;
+}
 
-  return name; // fallback to PATH
+// ---------- HTTP/SSE content server ----------
+
+/** @type {Map<string, string>} window name → current HTML content */
+const contentMap = new Map();
+
+/** @type {Map<string, Set<import('http').ServerResponse>>} window name → SSE clients */
+const sseClients = new Map();
+
+let httpServer = null;
+let httpPort = 0;
+
+// SSE auto-reload script injected into every page served
+const SSE_SCRIPT = `
+<script>
+(function() {
+  if (window.__microuiSSE) return;
+  window.__microuiSSE = true;
+  var name = location.pathname.split('/').pop();
+  var es = new EventSource('/events/' + name);
+  es.addEventListener('reload', function() { location.reload(); });
+  es.addEventListener('eval', function(e) {
+    try { eval(e.data); } catch(err) { console.error('[microui] eval error:', err); }
+  });
+  es.onerror = function() { setTimeout(function() { location.reload(); }, 2000); };
+})();
+</script>`;
+
+// Bridge script — provides window.genesis.send() and window.genesis.close()
+// Uses fetch POST back to the HTTP server (avoids broken SendWebMessage)
+const BRIDGE_SCRIPT = `
+<script>
+(function() {
+  if (window.__genesisBridgeInstalled) return;
+  window.__genesisBridgeInstalled = true;
+  var name = location.pathname.split('/').pop();
+  var baseUrl = location.origin;
+  window.genesis = {
+    send: function(data) {
+      fetch(baseUrl + '/msg/' + name, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }).catch(function(err) { console.error('[genesis] send error:', err); });
+    },
+    close: function() {
+      fetch(baseUrl + '/msg/' + name, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ __genesis_close: true })
+      }).catch(function() {});
+    }
+  };
+})();
+</script>`;
+
+function injectScripts(html) {
+  const lc = html.toLowerCase();
+  const scripts = SSE_SCRIPT + BRIDGE_SCRIPT;
+  if (lc.includes("</body>")) {
+    return html.replace(/<\/body>/i, scripts + "\n</body>");
+  }
+  if (lc.includes("</html>")) {
+    return html.replace(/<\/html>/i, scripts + "\n</html>");
+  }
+  return html + scripts;
+}
+
+/**
+ * Start the HTTP server on a random available port.
+ * @returns {Promise<number>} The port the server is listening on.
+ */
+function startServer() {
+  if (httpServer) return Promise.resolve(httpPort);
+
+  return new Promise((resolvePort, reject) => {
+    const server = createServer((req, res) => {
+      const url = new URL(req.url, `http://127.0.0.1`);
+
+      // GET /w/{name} — serve HTML content
+      if (req.method === "GET" && url.pathname.startsWith("/w/")) {
+        const name = url.pathname.slice(3);
+        const html = contentMap.get(name);
+        if (!html) {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end("Not found");
+          return;
+        }
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-cache, no-store",
+        });
+        res.end(injectScripts(html));
+        return;
+      }
+
+      // GET /events/{name} — SSE stream
+      if (req.method === "GET" && url.pathname.startsWith("/events/")) {
+        const name = url.pathname.slice(8);
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+          "Access-Control-Allow-Origin": "*",
+        });
+        res.write(":ok\n\n");
+
+        if (!sseClients.has(name)) sseClients.set(name, new Set());
+        sseClients.get(name).add(res);
+
+        req.on("close", () => {
+          const clients = sseClients.get(name);
+          if (clients) {
+            clients.delete(res);
+            if (clients.size === 0) sseClients.delete(name);
+          }
+        });
+        return;
+      }
+
+      // POST /msg/{name} — receive messages from page (bridge)
+      if (req.method === "POST" && url.pathname.startsWith("/msg/")) {
+        const name = url.pathname.slice(5);
+        let body = "";
+        req.on("data", (chunk) => { body += chunk; });
+        req.on("end", () => {
+          res.writeHead(200, { "Content-Type": "text/plain" });
+          res.end("ok");
+          try {
+            const data = JSON.parse(body);
+            handleBridgeMessage(name, data);
+          } catch { /* ignore malformed */ }
+        });
+        return;
+      }
+
+      // Fallback
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not found");
+    });
+
+    server.listen(0, "127.0.0.1", () => {
+      httpPort = server.address().port;
+      httpServer = server;
+      console.error(`microui: HTTP server listening on 127.0.0.1:${httpPort}`);
+      resolvePort(httpPort);
+    });
+
+    server.on("error", reject);
+  });
+}
+
+/**
+ * Push an SSE event to all clients connected to a window.
+ */
+function pushSSE(name, event, data) {
+  const clients = sseClients.get(name);
+  if (!clients) return;
+  const payload = data !== undefined
+    ? `event: ${event}\ndata: ${data}\n\n`
+    : `event: ${event}\ndata:\n\n`;
+  for (const res of clients) {
+    try { res.write(payload); } catch { /* client gone */ }
+  }
+}
+
+/**
+ * Handle a message sent from the page via the bridge (fetch POST).
+ */
+function handleBridgeMessage(name, data) {
+  // Close signal
+  if (data && data.__genesis_close) {
+    sendCommand(name, { type: "close" });
+    return;
+  }
+  // Forward as a message event to stderr (same as before)
+  console.error(`microui[${name}]: message — ${JSON.stringify(data)}`);
 }
 
 // ---------- Window state ----------
@@ -37,33 +212,32 @@ const windows = new Map();
 
 // ---------- Spawn helpers ----------
 
-/**
- * Spawn a microui window process and register it.
- * @param {string} name  Unique window name.
- * @param {object} params  CLI parameters.
- * @returns {import('child_process').ChildProcess}
- */
 function spawnWindow(name, params) {
   const bin = resolveBinary();
-  const cliArgs = buildArgs(params);
+  const args = buildArgs(params);
 
-  const proc = spawn(bin, cliArgs, {
+  const proc = spawn(bin, args, {
     stdio: ["pipe", "pipe", "inherit"],
     windowsHide: false,
   });
 
   proc.on("exit", () => {
     windows.delete(name);
+    contentMap.delete(name);
+    // Close any lingering SSE clients
+    const clients = sseClients.get(name);
+    if (clients) {
+      for (const res of clients) { try { res.end(); } catch {} }
+      sseClients.delete(name);
+    }
   });
 
   proc.stdout.setEncoding("utf8");
   proc.stdout.on("data", (chunk) => {
     for (const line of chunk.split("\n")) {
       if (line.trim()) {
-        try {
-          const evt = JSON.parse(line);
-          handleEvent(name, evt);
-        } catch { /* non-JSON output ignored */ }
+        try { handleEvent(name, JSON.parse(line)); }
+        catch { /* non-JSON output ignored */ }
       }
     }
   });
@@ -74,6 +248,7 @@ function spawnWindow(name, params) {
 
 function buildArgs(params) {
   const args = [];
+  if (params.url)       { args.push("--url",    params.url); }
   if (params.width)     { args.push("--width",  String(params.width)); }
   if (params.height)    { args.push("--height", String(params.height)); }
   if (params.title)     { args.push("--title",  params.title); }
@@ -85,7 +260,6 @@ function buildArgs(params) {
 }
 
 function handleEvent(name, evt) {
-  // Surface notable events to stderr for debugging
   if (evt.type === "ready") {
     console.error(`microui[${name}]: ready — screen ${evt.screen?.width}×${evt.screen?.height}`);
   } else if (evt.type === "closed") {
@@ -95,11 +269,6 @@ function handleEvent(name, evt) {
   }
 }
 
-/**
- * Send a JSON Lines command to a running window.
- * @param {string} name  Window name.
- * @param {object} cmd  Command object.
- */
 function sendCommand(name, cmd) {
   const proc = windows.get(name);
   if (!proc || proc.killed || !proc.stdin.writable) return;
@@ -165,9 +334,14 @@ export function createMicroUITools() {
           return `Error: window '${args.name}' is already open. Use microui_update to change its content.`;
         }
 
+        // Ensure HTTP server is running
+        const port = await startServer();
         const html = wrapFragment(args.html, args.title || args.name);
+        contentMap.set(args.name, html);
 
+        const url = `http://127.0.0.1:${port}/w/${args.name}`;
         const proc = spawnWindow(args.name, {
+          url,
           title:     args.title || args.name,
           width:     args.width,
           height:    args.height,
@@ -177,15 +351,12 @@ export function createMicroUITools() {
           autoClose: args.auto_close,
         });
 
-        // Give the process a moment to start then send the initial HTML
-        await delay(300);
+        await delay(500);
 
         if (proc.exitCode !== null) {
+          contentMap.delete(args.name);
           return `Error: microui process exited immediately (code ${proc.exitCode}). Is the microui binary installed and on PATH?`;
         }
-
-        const b64 = Buffer.from(html, "utf8").toString("base64");
-        sendCommand(args.name, { type: "html", html: b64 });
 
         return `Window **${args.name}** opened. Use microui_update to change content or microui_close to close it.`;
       },
@@ -234,13 +405,13 @@ export function createMicroUITools() {
 
         if (args.html) {
           const html = wrapFragment(args.html, args.title || args.name);
-          const b64 = Buffer.from(html, "utf8").toString("base64");
-          sendCommand(args.name, { type: "html", html: b64 });
+          contentMap.set(args.name, html);
+          pushSSE(args.name, "reload");
           return `Window **${args.name}** content updated.`;
         }
 
         if (args.js) {
-          sendCommand(args.name, { type: "eval", js: args.js });
+          pushSSE(args.name, "eval", args.js);
           return `JavaScript evaluated in window **${args.name}**.`;
         }
 
@@ -265,15 +436,15 @@ export function createMicroUITools() {
       handler: async (args) => {
         if (args.name === "all") {
           const count = windows.size;
-          for (const [name] of windows) {
-            sendCommand(name, { type: "close" });
+          for (const [n] of windows) {
+            sendCommand(n, { type: "close" });
           }
           await delay(300);
-          // Force-kill any stragglers
           for (const [, proc] of windows) {
             try { proc.kill(); } catch { /* ok */ }
           }
           windows.clear();
+          contentMap.clear();
           return `Closed ${count} window(s).`;
         }
 
@@ -288,6 +459,7 @@ export function createMicroUITools() {
           try { proc.kill(); } catch { /* ok */ }
         }
         windows.delete(args.name);
+        contentMap.delete(args.name);
 
         return `Window **${args.name}** closed.`;
       },

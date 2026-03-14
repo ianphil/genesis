@@ -41,7 +41,7 @@ dotnet publish src/MicroUI/MicroUI.csproj -r win-x64 -c Release /p:PublishAot=fa
 
 > **Linux prerequisite:** `sudo apt-get install libwebkit2gtk-4.1-dev` (or equivalent for your distro)
 >
-> **Why .NET 10?** The project now targets `net10.0` because transitive dependencies kept pulling .NET 10 assemblies, which caused `FileNotFoundException` at runtime on `net8.0` builds.
+> **Why .NET 10?** The project targets `net10.0` because transitive dependencies pull .NET 10 assemblies, which cause `FileNotFoundException` at runtime on `net8.0` builds.
 
 ### 3. Use it
 
@@ -54,12 +54,20 @@ microui_show:
   height: 400
 ```
 
-Update it:
+Update it (live, via SSE):
 
 ```
 microui_update:
   name: pr-dashboard
   html: "<h1>3 Open PRs</h1><ul><li>#42 alice</li></ul>"
+```
+
+Run JavaScript in the window:
+
+```
+microui_update:
+  name: pr-dashboard
+  js: "document.getElementById('count').textContent = '5'"
 ```
 
 Close it:
@@ -69,21 +77,39 @@ microui_close:
   name: pr-dashboard
 ```
 
+## Architecture
+
+MicroUI v2 uses an **HTTP/SSE content architecture**:
+
+```
+microui-tools.mjs (embedded HTTP server, auto-started)
+  GET  /w/{name}         → serve HTML (SSE + bridge scripts auto-injected)
+  GET  /events/{name}    → SSE stream (reload + eval events)
+  POST /msg/{name}       → receive messages from page (JS → agent)
+
+microui.exe (Photino native window — thin shell)
+  --url http://127.0.0.1:{port}/w/{name}  → navigate to URL
+  stdin JSON: { type: "close" } | { type: "show", title: "..." }
+  stdout JSON: { type: "ready" } | { type: "closed" }
+```
+
+**Why HTTP?** Photino's `SendWebMessage()` and `LoadRawString()` corrupt string encoding on Windows/WebView2 (garbled CJK characters). By serving content over HTTP and pushing updates via SSE, we bypass the broken native interop entirely. The .NET binary is just a native window frame — all content management happens in the JS extension layer.
+
 ## Tools
 
 | Tool | Description |
 |------|-------------|
 | `microui_show` | Open a new native window with HTML content |
-| `microui_update` | Update content or run JavaScript in an open window |
+| `microui_update` | Update content (`html`) or run JavaScript (`js`) in an open window |
 | `microui_close` | Close a window (`all` to close every window) |
 | `microui_list` | List all open windows |
 
 ## JavaScript Bridge
 
-Every page loaded by MicroUI gets a `window.genesis` object injected:
+Every page gets a `window.genesis` object injected via the HTTP server:
 
 ```js
-// Send a message to the agent
+// Send a message to the agent (via fetch POST)
 window.genesis.send({ action: "submit", value: 42 });
 
 // Close the window
@@ -111,7 +137,7 @@ microui_show:
   auto_close: true
 ```
 
-### Live Dashboard (floating)
+### Live Dashboard (floating, auto-updating)
 
 ```
 microui_show:
@@ -122,7 +148,7 @@ microui_show:
   height: 200
 ```
 
-Then update as work progresses:
+Update as work progresses — content is pushed via SSE, no encoding corruption:
 
 ```
 microui_update:
@@ -132,19 +158,11 @@ microui_update:
 
 ### Native Copilot Chat
 
-Open a lightweight native chat window backed by the local responses extension:
+A chat window backed by the local responses extension is available as a built-in page in `pages/chat.html`. Serve it via `microui_show` or launch with the binary's `--url` flag pointed at the HTTP server.
 
-```bash
-microui --chat
-microui --chat --port 15210
-```
+The chat page calls `http://127.0.0.1:{responsesPort}/v1/responses` directly via `fetch()` + SSE streaming. Requires the responses extension to be running.
 
-Architecture:
-`chat.html` (WebView JS) → `fetch()` POST → `http://127.0.0.1:15210/v1/responses` → SSE stream → DOM update
-
-Requires the responses extension to be running. In chat mode, C# only hosts the window — all response traffic is JS ↔ HTTP.
-
-See [`docs/chat-guide.md`](docs/chat-guide.md) for the full streaming architecture and troubleshooting guide.
+See [`docs/chat-guide.md`](docs/chat-guide.md) for the full streaming architecture.
 
 ### Transparent HUD
 
@@ -160,15 +178,11 @@ microui_show:
 
 ## Protocol (stdin/stdout)
 
-MicroUI communicates over **JSON Lines** on stdin/stdout. You don't need to use this directly — the tools handle it — but it's useful for scripting.
-
-> **Important:** The binary reads stdin **synchronously** on startup, blocking until it receives the first `html` command. Send the HTML immediately after spawning — no delay needed.
+MicroUI communicates over **JSON Lines** on stdin/stdout for window control. Content delivery uses HTTP/SSE (handled by the extension tools).
 
 ### Commands (stdin → MicroUI)
 
 ```json
-{"type":"html","html":"<base64-encoded HTML>"}
-{"type":"eval","js":"document.title = 'Updated'"}
 {"type":"show","title":"New Title"}
 {"type":"close"}
 ```
@@ -177,17 +191,13 @@ MicroUI communicates over **JSON Lines** on stdin/stdout. You don't need to use 
 
 ```json
 {"type":"ready","screen":{"width":2560,"height":1440}}
-{"type":"message","data":{"action":"submit","value":42}}
 {"type":"closed"}
 ```
 
 ### CLI Flags
 
 ```
---chat             Launch embedded Copilot chat window
---port N           Responses API port for chat mode (default: 15210)
-
-# Standard window mode
+--url URL          Load content from URL (used by extension tools)
 --width N          Window width (default: 800)
 --height N         Window height (default: 600)
 --title STR        Window title (default: "Genesis")
@@ -197,29 +207,31 @@ MicroUI communicates over **JSON Lines** on stdin/stdout. You don't need to use 
 --auto-close       Exit after first message from page
 ```
 
+> **Fallback mode:** If `--url` is not provided, the binary falls back to the legacy stdin-based HTML loading (reads base64-encoded HTML command on stdin). This is kept for backward compatibility and scripting.
+
 ## File Structure
 
 ```
 .github/extensions/microui/
 ├── bin/
-│   └── {platform}/microui(.exe) # Standard binary location resolved by the tools
+│   └── {platform}/microui(.exe)  # Pre-built binary
 ├── src/
-│   ├── MicroUI/
-│   │   ├── MicroUI.csproj      # .NET 10 project with NativeAOT + embedded chat.html
-│   │   ├── Program.cs          # Entry point — CLI args, chat mode, stdin/stdout loop
-│   │   ├── Protocol.cs         # JSON Lines types (Command, Event)
-│   │   ├── BridgeScript.cs     # JavaScript bridge injected into pages
-│   │   ├── WindowManager.cs    # Photino window lifecycle
-│   │   ├── chat.html           # Embedded WebView chat client
-│   │   └── TrimmerRoots.xml    # NativeAOT trim preservation
-│   └── MicroUI.sln
+│   └── MicroUI/
+│       ├── MicroUI.csproj        # .NET 10 project with Photino.NET
+│       ├── Program.cs            # Entry point — CLI args, --url mode, stdin control loop
+│       ├── Protocol.cs           # JSON types (ShowCommand, ReadyEvent, ClosedEvent)
+│       ├── BridgeScript.cs       # JS bridge for file-based fallback mode
+│       ├── WindowManager.cs      # Photino window lifecycle
+│       └── TrimmerRoots.xml      # NativeAOT trim preservation
+├── pages/
+│   └── chat.html                 # Built-in Copilot chat page
 ├── docs/
-│   ├── forms-guide.md          # Guide for structured forms and ask_user alternatives
-│   └── chat-guide.md           # Guide for chat mode architecture and usage
+│   ├── forms-guide.md            # Guide for structured forms
+│   └── chat-guide.md             # Guide for chat mode architecture
 ├── tools/
-│   └── microui-tools.mjs       # Genesis tools: microui_show/update/close/list
-├── extension.mjs               # Copilot CLI extension entry point
-├── extension.json              # Extension manifest
+│   └── microui-tools.mjs         # HTTP/SSE server + extension tools
+├── extension.mjs                 # Copilot CLI extension entry point
+├── extension.json                # Extension manifest
 ├── package.json
 └── README.md
 ```
@@ -227,44 +239,39 @@ MicroUI communicates over **JSON Lines** on stdin/stdout. You don't need to use 
 ## How It Works
 
 1. Agent calls `microui_show` with HTML content
-2. Tool spawns the `microui` binary as a child process
-3. HTML is base64-encoded and sent as a JSON Lines command on stdin
-4. MicroUI reads the first `html` command **synchronously** before opening the window
-5. HTML is written to a temp file and loaded via `file://` URI (see Platform Notes below)
-6. Bridge script (`window.genesis`) is injected into every page
-7. Page can call `window.genesis.send(data)` → event fires on stdout → agent receives it
-8. Agent calls `microui_update` to change content or `microui_close` to dismiss
+2. Extension's embedded HTTP server stores the HTML in memory
+3. Tool spawns the `microui` binary with `--url http://127.0.0.1:{port}/w/{name}`
+4. Photino opens a native window and navigates to the URL
+5. HTTP server injects SSE auto-reload and bridge scripts into the served page
+6. Agent calls `microui_update` → HTML updated in memory → SSE "reload" event pushed → WebView reloads
+7. Agent calls `microui_update` with `js` → SSE "eval" event pushed → page evaluates JavaScript
+8. Page can call `window.genesis.send(data)` → fetch POST to HTTP server → agent receives it
 
-Standard window mode uses no HTTP server. No browser tabs. Native windows only.
-
-Chat mode takes a different path: `chat.html` is embedded into the binary, the port is injected at launch, and the page talks directly to `http://127.0.0.1:{port}/v1/responses` via `fetch()` + an SSE stream. In chat mode, C# only hosts the window — all response traffic is JS ↔ HTTP.
+No browser tabs. No encoding corruption. Native windows with live updates.
 
 ## Platform Notes
 
 ### Windows — WebView2
 
-- **`[STAThread]` is required.** WebView2 uses COM and must run on a Single-Threaded Apartment thread. Without this, the window opens but renders a blank white page. The entry point uses `[STAThread]` on `Main()`.
-- **`LoadRawString` is unreliable.** Photino's `LoadRawString()` sometimes fails to render content with WebView2. The workaround is to write HTML to a temp file and use `.Load(path)` which navigates via a `file://` URI. Temp files are created in `%TEMP%` with a GUID name.
-- **`SendWebMessage()` corrupts string encoding.** On Windows/WebView2, Photino can turn C# → JS strings into garbled CJK text. We observed this both with direct `SendWebMessage()` calls and when the call path was marshaled through `Invoke()`. For chat mode, the workaround is to avoid C# → JS data transfer entirely: the WebView page calls the responses API directly with `fetch()`, and C# only hosts the window.
-- **The OpenAI .NET SDK bridge was removed.** We evaluated the OpenAI .NET SDK v2.9.1 `ResponsesClient`, but the Responses API surface is still experimental and the WebView2 message-corruption issue made the C# bridge architecture unworkable. Chat mode now uses direct JS ↔ HTTP communication instead.
-- **NativeAOT requires the C++ Desktop Development workload** in Visual Studio. If unavailable, build with `/p:PublishAot=false --self-contained` instead.
+- **`[STAThread]` is required.** WebView2 uses COM and must run on a Single-Threaded Apartment thread.
+- **Content served via HTTP.** This avoids Photino's `LoadRawString()` and `SendWebMessage()` encoding bugs that garble strings into CJK characters.
+- **NativeAOT requires the C++ Desktop Development workload** in Visual Studio. If unavailable, build with `/p:PublishAot=false --self-contained`.
 
 ### macOS — WKWebView
 
-- Should work with both `LoadRawString` and file-based loading.
+- Should work with HTTP-based content delivery.
 - NativeAOT compiles without additional tooling.
 
 ### Linux — WebKitGTK
 
 - Requires `libwebkit2gtk-4.1-dev` (Ubuntu/Debian) or equivalent.
-- Same file-based loading strategy applies for consistency.
 
 ## Comparison
 
 | | **Canvas** | **MicroUI** |
 |---|---|---|
 | **Window type** | Browser tab | Native app window |
-| **Protocol** | HTTP + SSE | JSON Lines stdin/stdout |
+| **Content delivery** | HTTP + SSE | HTTP + SSE (via embedded server) |
 | **Platforms** | Cross-platform | Cross-platform |
 | **WebView** | System browser | WebView2 / WKWebView / WebKitGTK |
 | **Frameless** | No | Yes |

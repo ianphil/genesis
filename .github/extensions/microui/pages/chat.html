@@ -138,7 +138,7 @@
             }
             buffer += decoder.decode(result.value, { stream: true });
             var lines = buffer.split('\n');
-            buffer = lines.pop(); // keep incomplete line
+            buffer = lines.pop();
 
             var currentEvent = '';
             for (var i = 0; i < lines.length; i++) {
@@ -182,7 +182,6 @@
       return div;
     }
 
-    // Called from C# when streaming starts
     function onStreamStart() {
       var typing = document.getElementById('typing');
       if (typing) typing.remove();
@@ -193,7 +192,6 @@
       scrollToBottom();
     }
 
-    // Called from C# with each token
     function onToken(token) {
       if (!currentAgentMsg) onStreamStart();
       var textEl = currentAgentMsg.querySelector('.text');
@@ -201,7 +199,6 @@
       scrollToBottom();
     }
 
-    // Called from C# when response is complete
     function onDone() {
       var typing = document.getElementById('typing');
       if (typing) typing.remove();
@@ -211,7 +208,6 @@
       inputEl.focus();
     }
 
-    // Called from C# on error
     function onError(msg) {
       var typing = document.getElementById('typing');
       if (typing) typing.remove();

@@ -1,7 +1,7 @@
 {
   "name": "microui",
   "version": "0.1.0",
-  "description": "Lightweight native WebView windows for scripts and agents — cross-platform micro-UI over JSON Lines",
+  "description": "Lightweight native WebView windows for agents — HTTP/SSE content delivery with Photino native frames",
   "entry": "extension.mjs",
   "tools": ["microui_show", "microui_update", "microui_close", "microui_list"],
   "platforms": ["win32", "darwin", "linux"],
@@ -14,7 +14,7 @@
     "linux-x64": "bin/linux-x64/microui"
   },
   "build": {
-    "description": "Build from source — requires .NET 8 SDK",
+    "description": "Build from source — requires .NET 10 SDK",
     "commands": {
       "win-x64":   "dotnet publish src/MicroUI/MicroUI.csproj -r win-x64   -c Release /p:PublishAot=true -o bin/win-x64",
       "osx-arm64": "dotnet publish src/MicroUI/MicroUI.csproj -r osx-arm64 -c Release /p:PublishAot=true -o bin/osx-arm64",
