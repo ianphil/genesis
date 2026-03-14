@@ -32,10 +32,10 @@ This document is written for AI agents contributing to the codebase. If you are 
 .github/
   extensions/     # Copilot CLI extensions (tools the agent can use)
   skills/         # Skills (markdown instructions + scripts)
+    new-mind/templates/  # Genesis templates (soul, agent file, etc.)
   registry.json   # Version manifest — tracks what's installed
   agents/         # Agent definition files
   copilot-instructions.md  # Bootstrap instructions (consumed during genesis)
-.genesis-temp/    # Templates consumed during bootstrap (not shipped to agents)
 .working-memory/  # Stub files — overwritten during agent bootstrap
 ```
 
@@ -167,9 +167,11 @@ Genesis publishes two release channels:
 ### Graduating items to main
 
 1. Confirm the item is stable (tested, no breaking changes, used by frontier agents)
-2. PR from `frontier` into `main` — include only the graduating item
-3. Update `main`'s `registry.json` to include the new entry
-4. Bump the registry version
+2. Create a feature branch from `main`: `git checkout main && git checkout -b feature/graduate-<name>`
+3. Pull only the graduating item: `git checkout frontier -- .github/extensions/<name>/` (or `skills/`)
+4. Add the entry to `registry.json` and bump the version
+5. Commit, push, and open a PR against `main`
+6. After merge, rebase frontier on main (see below) — expect a conflict on `registry.json`; resolve by keeping frontier's extra items with main's new version number
 
 ### Branch management
 
