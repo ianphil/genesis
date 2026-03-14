@@ -9,13 +9,25 @@
 
 import { spawn } from "node:child_process";
 import { Buffer } from "node:buffer";
+import { existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // ---------- Binary resolution ----------
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function resolveBinary() {
   if (process.env.MICROUI_BIN) return process.env.MICROUI_BIN;
   const name = process.platform === "win32" ? "microui.exe" : "microui";
-  return name; // relies on PATH
+
+  // Check for binary relative to extension root (../bin/{platform}/)
+  const extRoot = resolve(__dirname, "..");
+  const platDir = `${process.platform === "win32" ? "win" : process.platform === "darwin" ? "osx" : "linux"}-${process.arch === "arm64" ? "arm64" : "x64"}`;
+  const localBin = resolve(extRoot, "bin", platDir, name);
+  if (existsSync(localBin)) return localBin;
+
+  return name; // fallback to PATH
 }
 
 // ---------- Window state ----------
