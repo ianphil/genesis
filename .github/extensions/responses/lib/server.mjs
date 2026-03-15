@@ -20,7 +20,7 @@ import {
  * @param {Function} deps.getMessages  — session.getMessages bound to the active session
  * @param {Function} deps.onEvent      — session.on bound to the active session
  */
-export function createChatApiServer(deps) {
+export function createChatApiServer(deps, log) {
   let server = null;
   let port = null;
   const sseClients = [];
@@ -186,6 +186,8 @@ export function createChatApiServer(deps) {
   function handleRequest(req, res) {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const path = url.pathname;
+
+    log.debug(`${req.method} ${path}`);
 
     // CORS preflight
     if (req.method === "OPTIONS") {

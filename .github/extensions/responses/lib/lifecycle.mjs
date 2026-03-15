@@ -2,6 +2,8 @@ import { createConnection } from "node:net";
 import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
+const noopLogger = { debug() {}, info() {}, error() {} };
+
 export function isProcessAlive(pid) {
   try {
     process.kill(pid, 0);
@@ -55,33 +57,32 @@ export function removeLockfile(lockPath) {
  *
  * Returns the port number on success, or null if startup was skipped.
  */
-export async function ensureServer(server, requestedPort, lockPath) {
+export async function ensureServer(server, requestedPort, lockPath, log = noopLogger) {
   if (server.isRunning()) {
+    log.debug("server already running this session");
     return server.getPort();
   }
 
   const lock = readLockfile(lockPath);
   if (lock) {
     if (isProcessAlive(lock.pid)) {
-      console.error(
-        `responses: server already running (pid ${lock.pid}, port ${lock.port}) — skipping start`
+      log.info(
+        `server already running (pid ${lock.pid}, port ${lock.port}) — skipping start`
       );
       return null;
     }
-    // Stale lockfile — previous session crashed
-    console.error("responses: cleaning stale lockfile");
+    log.info("cleaning stale lockfile");
     removeLockfile(lockPath);
   }
 
   const portBusy = await isPortInUse(requestedPort);
   if (portBusy) {
-    console.error(
-      `responses: port ${requestedPort} already in use — skipping start`
-    );
+    log.error(`port ${requestedPort} already in use — skipping start`);
     return null;
   }
 
   const actualPort = await server.start(requestedPort);
   writeLockfile(lockPath, process.pid, actualPort);
+  log.info(`listening on http://127.0.0.1:${actualPort}`);
   return actualPort;
 }

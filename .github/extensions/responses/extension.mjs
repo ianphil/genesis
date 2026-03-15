@@ -3,6 +3,7 @@ import { joinSession } from "@github/copilot-sdk/extension";
 import { createChatApiServer } from "./lib/server.mjs";
 import { ensureServer, removeLockfile } from "./lib/lifecycle.mjs";
 import { loadConfig } from "./lib/config.mjs";
+import { createLogger } from "./lib/logger.mjs";
 import { getExtensionDir, getDataDir, getLockfilePath, getConfigPath } from "./lib/paths.mjs";
 import { createApiTools } from "./tools/api-tools.mjs";
 
@@ -17,30 +18,28 @@ const deps = {
 const extDir = getExtensionDir();
 const lockPath = getLockfilePath(extDir);
 const configPath = getConfigPath(extDir);
+const config = loadConfig(configPath);
+const log = createLogger(config.logLevel);
 
 const server = createChatApiServer({
   sendAndWait: (...a) => deps.sendAndWait(...a),
   send: (...a) => deps.send(...a),
   getMessages: (...a) => deps.getMessages(...a),
   onEvent: (...a) => deps.onEvent(...a),
-});
+}, log);
 
 const session = await joinSession({
   onPermissionRequest: approveAll,
 
   hooks: {
     onSessionStart: async () => {
-      const config = loadConfig(configPath);
-      const port = await ensureServer(server, config.port, lockPath);
-      if (port) {
-        console.error(`responses: listening on http://127.0.0.1:${port}`);
-      }
+      await ensureServer(server, config.port, lockPath, log);
     },
 
     onSessionEnd: async () => {
       await server.stop();
       removeLockfile(lockPath);
-      console.error("responses: server stopped");
+      log.info("server stopped");
     },
   },
 
