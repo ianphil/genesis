@@ -1,14 +1,23 @@
-import { readLockfile, removeLockfile, writeLockfile, isProcessAlive } from "../lib/lifecycle.mjs";
+import { readLockfile, removeLockfile, writeLockfile, isProcessAlive, migrateLegacyData } from "../lib/lifecycle.mjs";
 import { loadConfig } from "../lib/config.mjs";
 import { getLockfilePath, getConfigPath } from "../lib/paths.mjs";
 
 /**
- * Tools exposed to the agent for managing the Responses API server.
+ * Sanitize an agent name to filesystem-safe characters.
  */
-export function createApiTools(server, extDir, agentName) {
-  const lockPath = getLockfilePath(extDir, agentName);
-  const configPath = getConfigPath(extDir, agentName);
+function sanitizeAgent(name) {
+  const cleaned = (name || "").trim().replace(/[^a-zA-Z0-9_-]/g, "");
+  return cleaned.length > 0 ? cleaned : null;
+}
 
+/**
+ * Tools exposed to the agent for managing the Responses API server.
+ * @param {object} server - The HTTP server instance
+ * @param {string} extDir - Extension root directory
+ * @param {object} state  - Mutable state with `agentName` property
+ * @param {object} log    - Logger instance
+ */
+export function createApiTools(server, extDir, state, log) {
   return [
     {
       name: "responses_status",
@@ -19,11 +28,12 @@ export function createApiTools(server, extDir, agentName) {
         properties: {},
       },
       handler: async () => {
+        const lockPath = getLockfilePath(extDir, state.agentName);
         const running = server.isRunning();
         const port = server.getPort();
         if (running) {
           return [
-            `Responses API server is running on http://127.0.0.1:${port} (agent: ${agentName})`,
+            `Responses API server is running on http://127.0.0.1:${port} (agent: ${state.agentName})`,
             "",
             "Endpoints:",
             `  POST http://127.0.0.1:${port}/v1/responses  — OpenAI Responses API (compatible)`,
@@ -37,7 +47,7 @@ export function createApiTools(server, extDir, agentName) {
         // Not running in this session — check lockfile for another session
         const lock = readLockfile(lockPath);
         if (lock && isProcessAlive(lock.pid)) {
-          return `Responses API server is running in another session (pid ${lock.pid}, port ${lock.port}, agent: ${agentName}).`;
+          return `Responses API server is running in another session (pid ${lock.pid}, port ${lock.port}, agent: ${state.agentName}).`;
         }
         if (lock) {
           removeLockfile(lockPath);
@@ -49,7 +59,8 @@ export function createApiTools(server, extDir, agentName) {
     {
       name: "responses_restart",
       description:
-        "Restart the Responses API server. Use if the server becomes unresponsive.",
+        "Restart the Responses API server. Use if the server becomes unresponsive. " +
+        "Use the 'agent' parameter to switch the per-agent namespace (config and lockfile isolation).",
       parameters: {
         type: "object",
         properties: {
@@ -58,17 +69,37 @@ export function createApiTools(server, extDir, agentName) {
             description:
               "Port to bind to. Defaults to the configured port in data/config.json.",
           },
+          agent: {
+            type: "string",
+            description:
+              "Agent name for per-agent data isolation. Switches config and lockfile " +
+              "to data/{agent}/. Persists for the rest of this session.",
+          },
         },
       },
       handler: async (args) => {
-        if (server.isRunning()) {
+        // Switch agent namespace if requested
+        const newAgent = args.agent ? sanitizeAgent(args.agent) : null;
+        if (newAgent && newAgent !== state.agentName) {
+          const oldLockPath = getLockfilePath(extDir, state.agentName);
+          if (server.isRunning()) {
+            await server.stop();
+          }
+          removeLockfile(oldLockPath);
+          state.agentName = newAgent;
+          migrateLegacyData(extDir, newAgent);
+          log.info(`switched to agent=${newAgent}`);
+        } else if (server.isRunning()) {
           await server.stop();
         }
+
+        const lockPath = getLockfilePath(extDir, state.agentName);
         removeLockfile(lockPath);
+        const configPath = getConfigPath(extDir, state.agentName);
         const config = loadConfig(configPath);
         const actualPort = await server.start(args.port || config.port);
         writeLockfile(lockPath, process.pid, actualPort);
-        return `Responses API server restarted on http://127.0.0.1:${actualPort}`;
+        return `Responses API server restarted on http://127.0.0.1:${actualPort} (agent: ${state.agentName})`;
       },
     },
   ];
