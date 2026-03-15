@@ -1,5 +1,5 @@
 {
-  "version": "0.17.0",
+  "version": "0.18.0",
   "source": "ianphil/genesis",
   "channel": "main",
   "extensions": {
@@ -14,7 +14,7 @@
       "description": "Display rich HTML content in the browser with SSE live reload"
     },
     "responses": {
-      "version": "0.2.0",
+      "version": "0.3.0",
       "path": ".github/extensions/responses",
       "description": "OpenAI Responses API–compatible HTTP server — external chat interfaces talk to the agent via standard SDK"
     }
