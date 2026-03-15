@@ -18,8 +18,10 @@ const deps = {
 const extDir = getExtensionDir();
 const lockPath = getLockfilePath(extDir);
 const configPath = getConfigPath(extDir);
-const config = loadConfig(configPath);
-const log = createLogger(config.logLevel);
+
+// Logger uses config at load time — acceptable for log level.
+// Port is read fresh in onSessionStart so config changes take effect without reload.
+const log = createLogger(loadConfig(configPath).logLevel);
 
 const server = createChatApiServer({
   sendAndWait: (...a) => deps.sendAndWait(...a),
@@ -33,6 +35,7 @@ const session = await joinSession({
 
   hooks: {
     onSessionStart: async () => {
+      const config = loadConfig(configPath);
       await ensureServer(server, config.port, lockPath, log);
     },
 
