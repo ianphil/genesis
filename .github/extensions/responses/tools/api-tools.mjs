@@ -5,9 +5,9 @@ import { getLockfilePath, getConfigPath } from "../lib/paths.mjs";
 /**
  * Tools exposed to the agent for managing the Responses API server.
  */
-export function createApiTools(server, extDir) {
-  const lockPath = getLockfilePath(extDir);
-  const configPath = getConfigPath(extDir);
+export function createApiTools(server, extDir, agentName) {
+  const lockPath = getLockfilePath(extDir, agentName);
+  const configPath = getConfigPath(extDir, agentName);
 
   return [
     {
@@ -23,7 +23,7 @@ export function createApiTools(server, extDir) {
         const port = server.getPort();
         if (running) {
           return [
-            `Responses API server is running on http://127.0.0.1:${port}`,
+            `Responses API server is running on http://127.0.0.1:${port} (agent: ${agentName})`,
             "",
             "Endpoints:",
             `  POST http://127.0.0.1:${port}/v1/responses  — OpenAI Responses API (compatible)`,
@@ -37,7 +37,7 @@ export function createApiTools(server, extDir) {
         // Not running in this session — check lockfile for another session
         const lock = readLockfile(lockPath);
         if (lock && isProcessAlive(lock.pid)) {
-          return `Responses API server is running in another session (pid ${lock.pid}, port ${lock.port}).`;
+          return `Responses API server is running in another session (pid ${lock.pid}, port ${lock.port}, agent: ${agentName}).`;
         }
         if (lock) {
           removeLockfile(lockPath);

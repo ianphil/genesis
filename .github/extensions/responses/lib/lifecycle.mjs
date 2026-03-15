@@ -1,6 +1,6 @@
 import { createConnection } from "node:net";
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, renameSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 const noopLogger = { debug() {}, info() {}, error() {} };
 
@@ -49,6 +49,35 @@ export function removeLockfile(lockPath) {
     unlinkSync(lockPath);
   } catch (err) {
     if (err.code !== "ENOENT") throw err;
+  }
+}
+
+/**
+ * Migrate legacy flat data/config.json and data/responses.lock into the
+ * namespaced data/{agentName}/ directory.  Idempotent — safe to call every
+ * session.  If the target file already exists the old copy is simply removed.
+ */
+export function migrateLegacyData(extDir, agentName) {
+  const targetDir = join(extDir, "data", agentName);
+  mkdirSync(targetDir, { recursive: true });
+
+  for (const filename of ["config.json", "responses.lock"]) {
+    const oldPath = join(extDir, "data", filename);
+    const newPath = join(targetDir, filename);
+
+    if (!existsSync(oldPath)) continue;
+
+    try {
+      if (existsSync(newPath)) {
+        // Target already exists — namespaced copy wins, discard old file
+        unlinkSync(oldPath);
+      } else {
+        renameSync(oldPath, newPath);
+      }
+    } catch (err) {
+      // ENOENT is fine — another process may have moved/deleted the file
+      if (err.code !== "ENOENT") throw err;
+    }
   }
 }
 

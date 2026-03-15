@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer } from "node:net";
@@ -14,6 +14,7 @@ import {
   writeLockfile,
   removeLockfile,
   ensureServer,
+  migrateLegacyData,
 } from "./lifecycle.mjs";
 
 // ---------------------------------------------------------------------------
@@ -195,6 +196,73 @@ describe("lockfile round-trip", () => {
   it("removeLockfile is idempotent", () => {
     const lp = join(tmp, "gone.lock");
     assert.doesNotThrow(() => removeLockfile(lp));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// lifecycle.mjs — migrateLegacyData
+// ---------------------------------------------------------------------------
+
+describe("migrateLegacyData", () => {
+  let tmp;
+  before(() => { tmp = mkdtempSync(join(tmpdir(), "resp-mig-")); });
+  after(() => { rmSync(tmp, { recursive: true, force: true }); });
+
+  it("moves legacy config.json into namespaced dir", () => {
+    const extDir = join(tmp, "ext-a");
+    mkdirSync(join(extDir, "data"), { recursive: true });
+    writeFileSync(join(extDir, "data", "config.json"), '{"port":15212}');
+
+    migrateLegacyData(extDir, "fox");
+
+    assert.equal(existsSync(join(extDir, "data", "config.json")), false);
+    assert.equal(existsSync(join(extDir, "data", "fox", "config.json")), true);
+    const content = JSON.parse(readFileSync(join(extDir, "data", "fox", "config.json"), "utf-8"));
+    assert.equal(content.port, 15212);
+  });
+
+  it("moves legacy responses.lock into namespaced dir", () => {
+    const extDir = join(tmp, "ext-b");
+    mkdirSync(join(extDir, "data"), { recursive: true });
+    writeFileSync(join(extDir, "data", "responses.lock"), '{"pid":1,"port":9999}');
+
+    migrateLegacyData(extDir, "ender");
+
+    assert.equal(existsSync(join(extDir, "data", "responses.lock")), false);
+    assert.equal(existsSync(join(extDir, "data", "ender", "responses.lock")), true);
+  });
+
+  it("deletes old file when namespaced target already exists", () => {
+    const extDir = join(tmp, "ext-c");
+    mkdirSync(join(extDir, "data", "elliot"), { recursive: true });
+    writeFileSync(join(extDir, "data", "config.json"), '{"port":1111}');
+    writeFileSync(join(extDir, "data", "elliot", "config.json"), '{"port":2222}');
+
+    migrateLegacyData(extDir, "elliot");
+
+    assert.equal(existsSync(join(extDir, "data", "config.json")), false);
+    const content = JSON.parse(readFileSync(join(extDir, "data", "elliot", "config.json"), "utf-8"));
+    assert.equal(content.port, 2222); // namespaced copy wins
+  });
+
+  it("is idempotent — no-op when no legacy files exist", () => {
+    const extDir = join(tmp, "ext-d");
+    assert.doesNotThrow(() => migrateLegacyData(extDir, "default"));
+    assert.equal(existsSync(join(extDir, "data", "default")), true);
+  });
+
+  it("handles both files at once", () => {
+    const extDir = join(tmp, "ext-e");
+    mkdirSync(join(extDir, "data"), { recursive: true });
+    writeFileSync(join(extDir, "data", "config.json"), '{"port":5555}');
+    writeFileSync(join(extDir, "data", "responses.lock"), '{"pid":42,"port":5555}');
+
+    migrateLegacyData(extDir, "fox");
+
+    assert.equal(existsSync(join(extDir, "data", "config.json")), false);
+    assert.equal(existsSync(join(extDir, "data", "responses.lock")), false);
+    assert.equal(existsSync(join(extDir, "data", "fox", "config.json")), true);
+    assert.equal(existsSync(join(extDir, "data", "fox", "responses.lock")), true);
   });
 });
 
