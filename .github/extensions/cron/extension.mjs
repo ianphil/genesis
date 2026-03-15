@@ -8,20 +8,29 @@ import { createCrudTools } from "./tools/crud.mjs";
 import { createLifecycleTools } from "./tools/lifecycle.mjs";
 import { createEngineControlTools } from "./tools/engine-control.mjs";
 import { ensureEngine } from "./lib/engine-autostart.mjs";
-import { getExtensionDir } from "./lib/paths.mjs";
+import { getExtensionDir, getAgentName } from "./lib/paths.mjs";
+import { migrateLegacyData } from "./lib/migration.mjs";
 
 const extDir = getExtensionDir();
+
+// Mutable agent state — tools can switch the agent namespace at runtime
+// (e.g., cron_engine_start --agent fox) since env vars can't be set
+// after extension processes spawn.
+const state = {
+  agentName: getAgentName(),
+};
 
 const session = await joinSession({
   onPermissionRequest: approveAll,
   hooks: {
     onSessionStart: async () => {
-      await ensureEngine(extDir);
+      migrateLegacyData(extDir, state.agentName);
+      await ensureEngine(extDir, state.agentName);
     },
   },
   tools: [
-    ...createCrudTools(extDir),
-    ...createLifecycleTools(extDir),
-    ...createEngineControlTools(extDir),
+    ...createCrudTools(extDir, state),
+    ...createLifecycleTools(extDir, state),
+    ...createEngineControlTools(extDir, state),
   ],
 });

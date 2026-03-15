@@ -3,7 +3,7 @@
 import { readJob, writeJob } from "../lib/store.mjs";
 import { calculateNextRun } from "../lib/scheduler.mjs";
 
-export function createLifecycleTools(extDir) {
+export function createLifecycleTools(extDir, state) {
   return [
     {
       name: "cron_pause",
@@ -16,13 +16,13 @@ export function createLifecycleTools(extDir) {
         required: ["jobId"],
       },
       handler: async (args) => {
-        const job = readJob(extDir, args.jobId);
+        const job = readJob(extDir, state.agentName, args.jobId);
         if (!job) return `Error: job '${args.jobId}' not found.`;
         if (job.status === "disabled") return `Job **${job.name}** is already paused.`;
 
         job.status = "disabled";
         job.nextRunAtUtc = null;
-        writeJob(extDir, job);
+        writeJob(extDir, state.agentName, job);
         return `Paused job **${job.name}** (${job.id}). Use cron_resume to re-enable.`;
       },
     },
@@ -38,14 +38,14 @@ export function createLifecycleTools(extDir) {
         required: ["jobId"],
       },
       handler: async (args) => {
-        const job = readJob(extDir, args.jobId);
+        const job = readJob(extDir, state.agentName, args.jobId);
         if (!job) return `Error: job '${args.jobId}' not found.`;
         if (job.status === "enabled") return `Job **${job.name}** is already running.`;
 
         job.status = "enabled";
         job.backoff = null;
         job.nextRunAtUtc = calculateNextRun(job.schedule, job.lastRunAtUtc);
-        writeJob(extDir, job);
+        writeJob(extDir, state.agentName, job);
         return `Resumed job **${job.name}** (${job.id}).\nNext run: ${job.nextRunAtUtc || "none"}`;
       },
     },

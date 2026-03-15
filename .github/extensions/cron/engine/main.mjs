@@ -1,7 +1,8 @@
 // Cron Engine — standalone detached process.
 // Tick loop reads jobs, evaluates schedules, dispatches due jobs.
+// Accepts --agent <name> to scope to a specific agent namespace.
 
-import { readFileSync, writeFileSync, unlinkSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync, readdirSync, mkdirSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,10 +13,23 @@ import { executeCommand } from "../lib/executor.mjs";
 import { executePrompt } from "../lib/prompt-executor.mjs";
 import { appendHistory, createRunRecord } from "../lib/history.mjs";
 import { getCachedIdentity, clearIdentityCache } from "../lib/identity.mjs";
-import { getLockfilePath, getDataDir } from "../lib/paths.mjs";
+import { getLockfilePath, getEngineLogPath, getAgentName, getDataDir } from "../lib/paths.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const extDir = resolve(__dirname, "..");
+
+// Parse --agent from CLI args, fall back to env var, then "default"
+function resolveAgentName() {
+  const idx = process.argv.indexOf("--agent");
+  if (idx !== -1 && process.argv[idx + 1]) {
+    const raw = process.argv[idx + 1].trim();
+    const sanitized = raw.replace(/[^a-zA-Z0-9_-]/g, "");
+    if (sanitized.length > 0) return sanitized;
+  }
+  return getAgentName();
+}
+
+const agentName = resolveAgentName();
 
 const TICK_INTERVAL_MS = 2000;
 const MAX_CONCURRENT = 3;
@@ -29,7 +43,9 @@ let lastTickTime = Date.now();
 // --- Lockfile management ---
 
 function acquireLock() {
-  const lockPath = getLockfilePath(extDir);
+  const lockPath = getLockfilePath(extDir, agentName);
+  // Ensure data directory exists
+  mkdirSync(getDataDir(extDir, agentName), { recursive: true });
   // Check for stale lock
   try {
     const existingPid = parseInt(readFileSync(lockPath, "utf-8").trim(), 10);
@@ -44,12 +60,12 @@ function acquireLock() {
   }
 
   writeFileSync(lockPath, String(process.pid), "utf-8");
-  log(`Engine started (PID ${process.pid}, Node ${process.version})`);
+  log(`Engine started (PID ${process.pid}, agent: ${agentName}, Node ${process.version})`);
 }
 
 function releaseLock() {
   try {
-    unlinkSync(getLockfilePath(extDir));
+    unlinkSync(getLockfilePath(extDir, agentName));
   } catch { /* best effort */ }
 }
 
@@ -71,7 +87,8 @@ function log(message) {
 
   // Also append to engine.log
   try {
-    const logPath = join(getDataDir(extDir), "engine.log");
+    const logPath = getEngineLogPath(extDir, agentName);
+    mkdirSync(dirname(logPath), { recursive: true });
     writeFileSync(logPath, line + "\n", { flag: "a" });
   } catch { /* best effort */ }
 }
@@ -83,7 +100,7 @@ async function tick() {
   if (shuttingDown) return;
 
   try {
-    const jobs = listJobs(extDir);
+    const jobs = listJobs(extDir, agentName);
     const dueJobs = jobs
       .filter((j) => isDue(j) && !activeJobIds.has(j.id))
       .sort((a, b) => {
@@ -132,14 +149,14 @@ async function dispatch(job) {
     record.durationMs = result.durationMs;
 
     // Persist history
-    appendHistory(extDir, job.id, record);
+    appendHistory(extDir, agentName, job.id, record);
 
     // Apply lifecycle state transition
     // Re-read job in case it was modified during execution
-    const currentJob = readJob(extDir, job.id);
+    const currentJob = readJob(extDir, agentName, job.id);
     if (currentJob) {
       applyResult(currentJob, result);
-      writeJob(extDir, currentJob);
+      writeJob(extDir, agentName, currentJob);
     }
 
     const emoji = result.success ? "✅" : "❌";
@@ -151,7 +168,7 @@ async function dispatch(job) {
     record.outcome = "failure";
     record.errorMessage = err.message;
     record.durationMs = Date.now() - new Date(record.startedAtUtc).getTime();
-    appendHistory(extDir, job.id, record);
+    appendHistory(extDir, agentName, job.id, record);
   } finally {
     activeJobIds.delete(job.id);
     concurrentCount--;

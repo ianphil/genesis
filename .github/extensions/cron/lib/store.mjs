@@ -29,14 +29,14 @@ export function nameToId(name) {
 }
 
 /** Ensure the jobs directory exists */
-function ensureJobsDir(extDir) {
-  mkdirSync(getJobsDir(extDir), { recursive: true });
+function ensureJobsDir(extDir, agentName) {
+  mkdirSync(getJobsDir(extDir, agentName), { recursive: true });
 }
 
 /** Read a single job by ID. Returns null if not found. */
-export function readJob(extDir, jobId) {
+export function readJob(extDir, agentName, jobId) {
   try {
-    const raw = readFileSync(join(getJobsDir(extDir), `${jobId}.json`), "utf-8");
+    const raw = readFileSync(join(getJobsDir(extDir, agentName), `${jobId}.json`), "utf-8");
     return JSON.parse(raw);
   } catch {
     return null;
@@ -44,9 +44,9 @@ export function readJob(extDir, jobId) {
 }
 
 /** List all jobs. Returns an array of job objects. */
-export function listJobs(extDir) {
-  ensureJobsDir(extDir);
-  const dir = getJobsDir(extDir);
+export function listJobs(extDir, agentName) {
+  ensureJobsDir(extDir, agentName);
+  const dir = getJobsDir(extDir, agentName);
   const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
   return files.map((f) => {
     try {
@@ -58,15 +58,15 @@ export function listJobs(extDir) {
 }
 
 /** Write a job (create or update). */
-export function writeJob(extDir, job) {
-  ensureJobsDir(extDir);
-  atomicWrite(join(getJobsDir(extDir), `${job.id}.json`), job);
+export function writeJob(extDir, agentName, job) {
+  ensureJobsDir(extDir, agentName);
+  atomicWrite(join(getJobsDir(extDir, agentName), `${job.id}.json`), job);
 }
 
 /** Delete a job by ID. Returns true if deleted, false if not found. */
-export function deleteJob(extDir, jobId) {
+export function deleteJob(extDir, agentName, jobId) {
   try {
-    unlinkSync(join(getJobsDir(extDir), `${jobId}.json`));
+    unlinkSync(join(getJobsDir(extDir, agentName), `${jobId}.json`));
     return true;
   } catch {
     return false;
@@ -74,6 +74,6 @@ export function deleteJob(extDir, jobId) {
 }
 
 /** Check if a job ID already exists. */
-export function jobExists(extDir, jobId) {
-  return readJob(extDir, jobId) !== null;
+export function jobExists(extDir, agentName, jobId) {
+  return readJob(extDir, agentName, jobId) !== null;
 }

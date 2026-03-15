@@ -9,14 +9,14 @@ const MAX_RECORDS = 500;
 const MAX_BYTES = 1_048_576; // 1 MB
 
 /** Ensure the history directory exists */
-function ensureHistoryDir(extDir) {
-  mkdirSync(getHistoryDir(extDir), { recursive: true });
+function ensureHistoryDir(extDir, agentName) {
+  mkdirSync(getHistoryDir(extDir, agentName), { recursive: true });
 }
 
 /** Read history for a job. Returns array of run records (newest first). */
-export function readHistory(extDir, jobId) {
+export function readHistory(extDir, agentName, jobId) {
   try {
-    const raw = readFileSync(join(getHistoryDir(extDir), `${jobId}.json`), "utf-8");
+    const raw = readFileSync(join(getHistoryDir(extDir, agentName), `${jobId}.json`), "utf-8");
     return JSON.parse(raw);
   } catch {
     return [];
@@ -24,11 +24,11 @@ export function readHistory(extDir, jobId) {
 }
 
 /** Append a run record and auto-prune. */
-export function appendHistory(extDir, jobId, record) {
-  ensureHistoryDir(extDir);
-  const filePath = join(getHistoryDir(extDir), `${jobId}.json`);
+export function appendHistory(extDir, agentName, jobId, record) {
+  ensureHistoryDir(extDir, agentName);
+  const filePath = join(getHistoryDir(extDir, agentName), `${jobId}.json`);
 
-  let history = readHistory(extDir, jobId);
+  let history = readHistory(extDir, agentName, jobId);
   history.push(record);
 
   // Prune by count
@@ -47,9 +47,9 @@ export function appendHistory(extDir, jobId, record) {
 }
 
 /** Delete history for a job. */
-export function deleteHistory(extDir, jobId) {
+export function deleteHistory(extDir, agentName, jobId) {
   try {
-    unlinkSync(join(getHistoryDir(extDir), `${jobId}.json`));
+    unlinkSync(join(getHistoryDir(extDir, agentName), `${jobId}.json`));
     return true;
   } catch {
     return false;
@@ -70,7 +70,7 @@ export function createRunRecord(jobId) {
 }
 
 /** Get recent history (last N records). */
-export function getRecentHistory(extDir, jobId, count = 10) {
-  const history = readHistory(extDir, jobId);
+export function getRecentHistory(extDir, agentName, jobId, count = 10) {
+  const history = readHistory(extDir, agentName, jobId);
   return history.slice(-count);
 }
