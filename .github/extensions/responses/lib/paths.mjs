@@ -27,3 +27,7 @@ export function getLockfilePath(extDir, agentName) {
 export function getConfigPath(extDir, agentName) {
   return join(extDir, "data", agentName, "config.json");
 }
+
+export function getBreadcrumbPath(extDir, agentName) {
+  return join(extDir, "data", agentName, "startup.json");
+}

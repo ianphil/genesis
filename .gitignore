@@ -7,6 +7,11 @@ Thumbs.db
 .idea/
 *.swp
 
+# Extensions — shared
+.github/extensions/*/node_modules/
+.github/extensions/*/package-lock.json
+.github/extensions/package-lock.json
+
 # Cron extension runtime data (local state, not version controlled)
 # Per-agent namespaced layout: data/{agent}/jobs/, data/{agent}/history/, etc.
 .github/extensions/cron/data/*/
@@ -15,9 +20,10 @@ Thumbs.db
 .github/extensions/cron/data/history/*.json
 .github/extensions/cron/data/engine.lock
 .github/extensions/cron/data/engine.log
-.github/extensions/cron/node_modules/
 
 # Canvas extension runtime data
 .github/extensions/canvas/data/content/
 !.github/extensions/canvas/data/content/test-canvas.html
-.github/extensions/canvas/node_modules/
+
+# Responses extension runtime data
+.github/extensions/responses/data/*/
