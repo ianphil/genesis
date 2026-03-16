@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createServer } from "node:net";
 import { request } from "node:http";
 
 import { createLogger } from "./logger.mjs";
@@ -11,11 +10,10 @@ import { loadConfig, saveConfig, DEFAULT_CONFIG } from "./config.mjs";
 import { createChatApiServer } from "./server.mjs";
 import {
   isProcessAlive,
-  isPortInUse,
   readLockfile,
   writeLockfile,
   removeLockfile,
-  ensureServer,
+  cleanStaleLockfile,
   migrateLegacyData,
 } from "./lifecycle.mjs";
 
@@ -154,29 +152,6 @@ describe("isProcessAlive", () => {
   });
 });
 
-describe("isPortInUse", () => {
-  let srv;
-  let port;
-
-  before((_, done) => {
-    srv = createServer();
-    srv.listen(0, "127.0.0.1", () => {
-      port = srv.address().port;
-      done();
-    });
-  });
-  after((_, done) => { srv.close(done); });
-
-  it("returns true when port is occupied", async () => {
-    assert.equal(await isPortInUse(port), true);
-  });
-
-  it("returns false when port is free", async () => {
-    // Use a high ephemeral port unlikely to be in use
-    assert.equal(await isPortInUse(19876), false);
-  });
-});
-
 describe("lockfile round-trip", () => {
   let tmp;
   before(() => { tmp = mkdtempSync(join(tmpdir(), "resp-lock-")); });
@@ -269,74 +244,33 @@ describe("migrateLegacyData", () => {
 });
 
 // ---------------------------------------------------------------------------
-// ensureServer — state machine
+// lifecycle.mjs — cleanStaleLockfile
 // ---------------------------------------------------------------------------
 
-describe("ensureServer", () => {
+describe("cleanStaleLockfile", () => {
   let tmp;
   const log = createLogger("silent");
-  before(() => { tmp = mkdtempSync(join(tmpdir(), "resp-ens-")); });
+  before(() => { tmp = mkdtempSync(join(tmpdir(), "resp-stale-")); });
   after(() => { rmSync(tmp, { recursive: true, force: true }); });
 
-  function mockServer(overrides = {}) {
-    return {
-      isRunning: () => false,
-      getPort: () => null,
-      start: async (p) => p,
-      ...overrides,
-    };
-  }
-
-  it("returns current port if already running", async () => {
-    const lp = join(tmp, "a.lock");
-    const srv = mockServer({ isRunning: () => true, getPort: () => 9000 });
-    const result = await ensureServer(srv, 9000, lp, log);
-    assert.equal(result, 9000);
-    assert.equal(existsSync(lp), false);
-  });
-
-  it("cleans stale lockfile and starts", async () => {
-    const lp = join(tmp, "b.lock");
+  it("removes lockfile with dead PID", () => {
+    const lp = join(tmp, "dead.lock");
     writeLockfile(lp, 999999, 9001);
-    let started = false;
-    const srv = mockServer({ start: async (p) => { started = true; return p; } });
-    const result = await ensureServer(srv, 9001, lp, log);
-    assert.equal(result, 9001);
-    assert.equal(started, true);
-    const lock = readLockfile(lp);
-    assert.equal(lock.port, 9001);
-    assert.equal(lock.pid, process.pid);
+    cleanStaleLockfile(lp, log);
+    assert.equal(readLockfile(lp), null);
   });
 
-  it("skips start when port is in use by external process", async () => {
-    const lp = join(tmp, "c.lock");
-    const extSrv = createServer();
-    const extPort = await new Promise((resolve) => {
-      extSrv.listen(0, "127.0.0.1", () => resolve(extSrv.address().port));
-    });
-
-    const srv = mockServer();
-    const result = await ensureServer(srv, extPort, lp, log);
-    assert.equal(result, null);
-    extSrv.close();
-  });
-
-  it("starts cleanly and writes lockfile", async () => {
-    const lp = join(tmp, "d.lock");
-    const srv = mockServer({ start: async (p) => p });
-    const result = await ensureServer(srv, 18000, lp, log);
-    assert.equal(result, 18000);
+  it("leaves lockfile with live PID", () => {
+    const lp = join(tmp, "live.lock");
+    writeLockfile(lp, process.pid, 9002);
+    cleanStaleLockfile(lp, log);
     const lock = readLockfile(lp);
     assert.equal(lock.pid, process.pid);
-    assert.equal(lock.port, 18000);
   });
 
-  it("returns null when another live session owns the lockfile", async () => {
-    const lp = join(tmp, "e.lock");
-    writeLockfile(lp, process.pid, 7777);
-    const srv = mockServer();
-    const result = await ensureServer(srv, 7777, lp, log);
-    assert.equal(result, null);
+  it("is a no-op when no lockfile exists", () => {
+    const lp = join(tmp, "nope.lock");
+    assert.doesNotThrow(() => cleanStaleLockfile(lp, log));
   });
 });
 
@@ -377,67 +311,51 @@ function httpPost(port, path, body) {
   });
 }
 
-describe("server session guard", () => {
+describe("server with bindSession", () => {
   const log = createLogger("silent");
   let server;
   let port;
 
-  // Start with null deps (no session)
-  const deps = {
-    sendAndWait: null,
-    send: null,
-    getMessages: null,
-    onEvent: null,
-  };
-
   before(async () => {
-    server = createChatApiServer(deps, log);
+    server = createChatApiServer(log);
     port = await server.start(0);
+    server.bindSession({
+      sendAndWait: async () => ({ data: { content: "test response" } }),
+      send: async () => {},
+      getMessages: async () => [{ role: "user", content: "hi" }],
+      onEvent: () => () => {},
+    });
   });
 
   after(async () => {
     await server.stop();
   });
 
-  it("returns 503 on POST /v1/responses when no session", async () => {
-    const res = await httpPost(port, "/v1/responses", { input: "hello" });
-    assert.equal(res.status, 503);
-    assert.equal(res.body.error.message, "No active session");
-  });
-
-  it("returns 503 on GET /history when no session", async () => {
-    const res = await httpGet(port, "/history");
-    assert.equal(res.status, 503);
-    assert.equal(res.body.error.message, "No active session");
-  });
-
-  it("reports session: disconnected on GET /health when no session", async () => {
-    const res = await httpGet(port, "/health");
-    assert.equal(res.status, 200);
-    assert.equal(res.body.session, "disconnected");
-  });
-
-  it("reports session: connected on GET /health after binding deps", async () => {
-    deps.sendAndWait = async () => ({ data: { content: "ok" } });
-    deps.getMessages = async () => [];
+  it("returns session: connected on GET /health", async () => {
     const res = await httpGet(port, "/health");
     assert.equal(res.status, 200);
     assert.equal(res.body.session, "connected");
   });
 
-  it("succeeds on POST /v1/responses after binding deps", async () => {
-    deps.sendAndWait = async () => ({ data: { content: "test response" } });
+  it("succeeds on POST /v1/responses", async () => {
     const res = await httpPost(port, "/v1/responses", { input: "hello" });
     assert.equal(res.status, 200);
     assert.equal(res.body.output_text, "test response");
   });
 
-  it("returns 503 again after unbinding deps", async () => {
-    deps.sendAndWait = null;
-    deps.send = null;
-    deps.getMessages = null;
-    deps.onEvent = null;
-    const res = await httpPost(port, "/v1/responses", { input: "hello" });
-    assert.equal(res.status, 503);
+  it("returns history on GET /history", async () => {
+    const res = await httpGet(port, "/history");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.messages.length, 1);
+  });
+
+  it("returns 400 on missing input", async () => {
+    const res = await httpPost(port, "/v1/responses", {});
+    assert.equal(res.status, 400);
+  });
+
+  it("returns 404 on unknown path", async () => {
+    const res = await httpGet(port, "/unknown");
+    assert.equal(res.status, 404);
   });
 });

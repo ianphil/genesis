@@ -14,16 +14,13 @@ import {
  *   GET  /health        — liveness check
  *   GET  /history       — recent conversation history
  *
- * @param {object} deps  — mutable object whose properties are rebound per session.
- *   Properties are null when no session is active.
- * @param {Function|null} deps.sendAndWait
- * @param {Function|null} deps.send
- * @param {Function|null} deps.getMessages
- * @param {Function|null} deps.onEvent
+ * Session methods are bound once via bindSession() after joinSession() resolves.
+ * The server only exists while a session is active (process = lifecycle unit).
  */
-export function createChatApiServer(deps, log) {
+export function createChatApiServer(log) {
   let server = null;
   let port = null;
+  let session = null;
   const sseClients = [];
 
   function corsHeaders() {
@@ -60,15 +57,10 @@ export function createChatApiServer(deps, log) {
   }
 
   async function handleHistory(req, res) {
-    if (!hasSession()) {
-      return jsonResponse(res, 503, {
-        error: { type: "server_error", message: "No active session" },
-      });
-    }
     try {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const limit = parseInt(url.searchParams.get("limit"), 10) || 0;
-      let messages = await deps.getMessages();
+      let messages = await session.getMessages();
       if (limit > 0) {
         messages = messages.slice(-limit);
       }
@@ -78,14 +70,10 @@ export function createChatApiServer(deps, log) {
     }
   }
 
-  function hasSession() {
-    return typeof deps.sendAndWait === "function";
-  }
-
   function handleHealth(_req, res) {
     jsonResponse(res, 200, {
       status: "ok",
-      session: hasSession() ? "connected" : "disconnected",
+      session: "connected",
       port,
       uptime: process.uptime(),
       timestamp: Date.now(),
@@ -97,12 +85,6 @@ export function createChatApiServer(deps, log) {
   // ---------------------------------------------------------------------------
 
   async function handleResponses(req, res) {
-    if (!hasSession()) {
-      return jsonResponse(res, 503, {
-        error: { type: "server_error", message: "No active session" },
-      });
-    }
-
     let body;
     try {
       body = await readBody(req);
@@ -135,7 +117,7 @@ export function createChatApiServer(deps, log) {
       const writer = createStreamWriter(res, opts);
       const unsubs = [];
 
-      const offDelta = deps.onEvent("assistant.streaming_delta", (event) => {
+      const offDelta = session.onEvent("assistant.streaming_delta", (event) => {
         const chunk = event?.data?.content || event?.data?.delta || "";
         if (chunk) writer.writeDelta(chunk);
       });
@@ -143,7 +125,7 @@ export function createChatApiServer(deps, log) {
 
       let finalContent = "";
       const done = new Promise((resolve) => {
-        const offMessage = deps.onEvent("assistant.message", (event) => {
+        const offMessage = session.onEvent("assistant.message", (event) => {
           finalContent = event?.data?.content ?? "";
           resolve();
         });
@@ -151,7 +133,7 @@ export function createChatApiServer(deps, log) {
       });
 
       try {
-        await deps.send({ prompt });
+        await session.send({ prompt });
       } catch (err) {
         unsubs.forEach((fn) => fn());
         return writer.error(err.message);
@@ -186,7 +168,7 @@ export function createChatApiServer(deps, log) {
     const timeout = typeof body.timeout === "number" ? body.timeout : 120_000;
 
     try {
-      const response = await deps.sendAndWait({ prompt }, timeout);
+      const response = await session.sendAndWait({ prompt }, timeout);
       const content = response?.data?.content ?? "(no response)";
       jsonResponse(res, 200, buildResponse(content, opts));
     } catch (err) {
@@ -251,16 +233,16 @@ export function createChatApiServer(deps, log) {
       });
     },
 
+    bindSession(deps) {
+      session = deps;
+    },
+
     getPort() {
       return port;
     },
 
     isRunning() {
       return server !== null;
-    },
-
-    hasSession() {
-      return hasSession();
     },
   };
 }

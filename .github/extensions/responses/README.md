@@ -60,13 +60,14 @@ for await (const event of stream) {
 
 ## Usage
 
-The extension starts the HTTP server when the Copilot CLI loads the extension
-and keeps it running across session transitions (e.g. `/clear`). The server
-binds once and does not recycle — external clients maintain a stable connection.
+The server lifecycle is tied to the session — it starts when the session starts
+and stops when the session ends. On `/clear`, the CLI kills and respawns the
+extension process, so the server restarts with a fresh session. External clients
+should implement retry logic for brief connection-refused windows during
+session transitions.
 
-During brief session transitions, requests to `/v1/responses` and `/history`
-return `503 No active session`. The `/health` endpoint stays available and
-reports `session: "connected"` or `"disconnected"`.
+The `/health` endpoint always reports `session: "connected"` when reachable.
+If the server is not reachable (connection refused), the session is not active.
 
 ### Send a message (curl)
 
@@ -98,6 +99,15 @@ curl http://127.0.0.1:<port>/health
 | `responses_restart` | Restart the server (optionally on a specific port) |
 
 ## Architecture
+
+```
+Extension Process (one per session, killed on /clear)
+ ├── HTTP Server (127.0.0.1:<port>)
+ │    ├── POST /v1/responses ──▶ session.sendAndWait()
+ │    ├── GET  /history       ──▶ session.getMessages()
+ │    └── GET  /health        ──▶ 200 connected
+ └── Lockfile (guards port across process restarts)
+```
 
 ```
 External Client ──POST /v1/responses──▶ HTTP Server (Node.js)

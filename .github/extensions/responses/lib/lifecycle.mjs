@@ -1,4 +1,3 @@
-import { createConnection } from "node:net";
 import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, renameSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -11,19 +10,6 @@ export function isProcessAlive(pid) {
   } catch {
     return false;
   }
-}
-
-export function isPortInUse(port) {
-  return new Promise((resolve) => {
-    const sock = createConnection({ port, host: "127.0.0.1" });
-    sock.once("connect", () => {
-      sock.destroy();
-      resolve(true);
-    });
-    sock.once("error", () => {
-      resolve(false);
-    });
-  });
 }
 
 export function readLockfile(lockPath) {
@@ -53,6 +39,24 @@ export function removeLockfile(lockPath) {
 }
 
 /**
+ * Detect and remove a stale lockfile left by a previous process that died
+ * without cleanup (e.g. SIGKILL). If the lockfile's PID is still alive,
+ * it belongs to another running instance — leave it alone.
+ */
+export function cleanStaleLockfile(lockPath, log = noopLogger) {
+  const lock = readLockfile(lockPath);
+  if (!lock) return;
+
+  if (isProcessAlive(lock.pid)) {
+    log.info(`another instance running (pid ${lock.pid}, port ${lock.port})`);
+    return;
+  }
+
+  log.info("cleaning stale lockfile");
+  removeLockfile(lockPath);
+}
+
+/**
  * Migrate legacy flat data/config.json and data/responses.lock into the
  * namespaced data/{agentName}/ directory.  Idempotent — safe to call every
  * session.  If the target file already exists the old copy is simply removed.
@@ -69,49 +73,12 @@ export function migrateLegacyData(extDir, agentName) {
 
     try {
       if (existsSync(newPath)) {
-        // Target already exists — namespaced copy wins, discard old file
         unlinkSync(oldPath);
       } else {
         renameSync(oldPath, newPath);
       }
     } catch (err) {
-      // ENOENT is fine — another process may have moved/deleted the file
       if (err.code !== "ENOENT") throw err;
     }
   }
-}
-
-/**
- * Idempotent server startup. Mirrors cron engine's ensureEngine() pattern.
- *
- * Returns the port number on success, or null if startup was skipped.
- */
-export async function ensureServer(server, requestedPort, lockPath, log = noopLogger) {
-  if (server.isRunning()) {
-    log.debug("server already running this session");
-    return server.getPort();
-  }
-
-  const lock = readLockfile(lockPath);
-  if (lock) {
-    if (isProcessAlive(lock.pid)) {
-      log.info(
-        `server already running (pid ${lock.pid}, port ${lock.port}) — skipping start`
-      );
-      return null;
-    }
-    log.info("cleaning stale lockfile");
-    removeLockfile(lockPath);
-  }
-
-  const portBusy = await isPortInUse(requestedPort);
-  if (portBusy) {
-    log.error(`port ${requestedPort} already in use — skipping start`);
-    return null;
-  }
-
-  const actualPort = await server.start(requestedPort);
-  writeLockfile(lockPath, process.pid, actualPort);
-  log.info(`listening on http://127.0.0.1:${actualPort}`);
-  return actualPort;
 }
