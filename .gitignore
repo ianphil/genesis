@@ -8,6 +8,9 @@ Thumbs.db
 *.swp
 
 # Cron extension runtime data (local state, not version controlled)
+# Per-agent namespaced layout: data/{agent}/jobs/, data/{agent}/history/, etc.
+.github/extensions/cron/data/*/
+# Legacy flat layout (pre-namespace migration)
 .github/extensions/cron/data/jobs/*.json
 .github/extensions/cron/data/history/*.json
 .github/extensions/cron/data/engine.lock

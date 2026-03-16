@@ -27,7 +27,7 @@ function formatJobSummary(job) {
   return `${status} **${job.name}** (${job.id}) — ${type} | next: ${next}`;
 }
 
-export function createCrudTools(extDir) {
+export function createCrudTools(extDir, state) {
   return [
     {
       name: "cron_create",
@@ -62,7 +62,7 @@ export function createCrudTools(extDir) {
       handler: async (args) => {
         const id = nameToId(args.name);
         if (!id) return "Error: name produces an empty ID.";
-        if (jobExists(extDir, id)) return `Error: job '${id}' already exists. Use cron_update to modify it.`;
+        if (jobExists(extDir, state.agentName, id)) return `Error: job '${id}' already exists. Use cron_update to modify it.`;
 
         // Build schedule
         const schedule = { type: args.scheduleType };
@@ -95,7 +95,7 @@ export function createCrudTools(extDir) {
         }
 
         const job = makeJob(args.name, id, schedule, payload);
-        writeJob(extDir, job);
+        writeJob(extDir, state.agentName, job);
 
         return `Created job **${job.name}** (${job.id}).\n` +
           `Schedule: ${job.schedule.type}` +
@@ -122,7 +122,7 @@ export function createCrudTools(extDir) {
         },
       },
       handler: async (args) => {
-        let jobs = listJobs(extDir);
+        let jobs = listJobs(extDir, state.agentName);
         if (args.status) {
           jobs = jobs.filter((j) => j.status === args.status);
         }
@@ -151,10 +151,10 @@ export function createCrudTools(extDir) {
         required: ["jobId"],
       },
       handler: async (args) => {
-        const job = readJob(extDir, args.jobId);
+        const job = readJob(extDir, state.agentName, args.jobId);
         if (!job) return `Error: job '${args.jobId}' not found.`;
 
-        const recent = getRecentHistory(extDir, args.jobId, 5);
+        const recent = getRecentHistory(extDir, state.agentName, args.jobId, 5);
         const historyLines = recent.length > 0
           ? recent.map((r) =>
               `  ${r.outcome === "success" ? "✅" : "❌"} ${r.startedAtUtc} — ${r.durationMs}ms` +
@@ -202,7 +202,7 @@ export function createCrudTools(extDir) {
         required: ["jobId"],
       },
       handler: async (args) => {
-        const job = readJob(extDir, args.jobId);
+        const job = readJob(extDir, state.agentName, args.jobId);
         if (!job) return `Error: job '${args.jobId}' not found.`;
 
         const changes = [];
@@ -252,7 +252,7 @@ export function createCrudTools(extDir) {
 
         if (changes.length === 0) return "No changes specified.";
 
-        writeJob(extDir, job);
+        writeJob(extDir, state.agentName, job);
         return `Updated **${job.name}** (${job.id}): ${changes.join(", ")}` +
           (scheduleChanged ? `\nNext run: ${job.nextRunAtUtc || "none"}` : "");
       },
@@ -269,12 +269,12 @@ export function createCrudTools(extDir) {
         required: ["jobId"],
       },
       handler: async (args) => {
-        const job = readJob(extDir, args.jobId);
+        const job = readJob(extDir, state.agentName, args.jobId);
         if (!job) return `Error: job '${args.jobId}' not found.`;
 
         const name = job.name;
-        deleteJob(extDir, args.jobId);
-        deleteHistory(extDir, args.jobId);
+        deleteJob(extDir, state.agentName, args.jobId);
+        deleteHistory(extDir, state.agentName, args.jobId);
         return `Deleted job **${name}** (${args.jobId}) and its run history.`;
       },
     },

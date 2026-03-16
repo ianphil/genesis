@@ -15,22 +15,38 @@ export function getMindRoot(extDir) {
   return resolve(extDir, "..", "..", "..");
 }
 
-/** Data directory for runtime state */
-export function getDataDir(extDir) {
-  return join(extDir, "data");
+/**
+ * Derive the agent name from COPILOT_AGENT env var.
+ * Only [a-zA-Z0-9_-] characters are kept (filesystem safety).
+ * Falls back to "default" if empty or entirely invalid.
+ */
+export function getAgentName() {
+  const raw = (process.env.COPILOT_AGENT || "").trim();
+  const sanitized = raw.replace(/[^a-zA-Z0-9_-]/g, "");
+  return sanitized.length > 0 ? sanitized : "default";
 }
 
-/** Jobs directory */
-export function getJobsDir(extDir) {
-  return join(getDataDir(extDir), "jobs");
+/** Data directory for an agent's runtime state */
+export function getDataDir(extDir, agentName) {
+  return join(extDir, "data", agentName);
 }
 
-/** History directory */
-export function getHistoryDir(extDir) {
-  return join(getDataDir(extDir), "history");
+/** Jobs directory for an agent */
+export function getJobsDir(extDir, agentName) {
+  return join(getDataDir(extDir, agentName), "jobs");
 }
 
-/** Engine lockfile path */
-export function getLockfilePath(extDir) {
-  return join(getDataDir(extDir), "engine.lock");
+/** History directory for an agent */
+export function getHistoryDir(extDir, agentName) {
+  return join(getDataDir(extDir, agentName), "history");
+}
+
+/** Engine lockfile path for an agent */
+export function getLockfilePath(extDir, agentName) {
+  return join(getDataDir(extDir, agentName), "engine.lock");
+}
+
+/** Engine log path for an agent */
+export function getEngineLogPath(extDir, agentName) {
+  return join(getDataDir(extDir, agentName), "engine.log");
 }
