@@ -1,10 +1,10 @@
 {
-  "version": "0.17.0",
+  "version": "0.18.0",
   "source": "ianphil/genesis",
   "channel": "main",
   "extensions": {
     "cron": {
-      "version": "0.1.4",
+      "version": "0.2.0",
       "path": ".github/extensions/cron",
       "description": "Scheduled job execution — cron, interval, and one-shot with prompt and command payloads"
     },
