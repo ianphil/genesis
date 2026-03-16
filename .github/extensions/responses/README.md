@@ -60,8 +60,13 @@ for await (const event of stream) {
 
 ## Usage
 
-The extension starts automatically when the Copilot CLI session begins. The
-port is logged to stderr and available via the `responses_status` tool.
+The extension starts the HTTP server when the Copilot CLI loads the extension
+and keeps it running across session transitions (e.g. `/clear`). The server
+binds once and does not recycle — external clients maintain a stable connection.
+
+During brief session transitions, requests to `/v1/responses` and `/history`
+return `503 No active session`. The `/health` endpoint stays available and
+reports `session: "connected"` or `"disconnected"`.
 
 ### Send a message (curl)
 

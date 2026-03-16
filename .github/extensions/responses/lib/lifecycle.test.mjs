@@ -4,9 +4,11 @@ import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, existsSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer } from "node:net";
+import { request } from "node:http";
 
 import { createLogger } from "./logger.mjs";
 import { loadConfig, saveConfig, DEFAULT_CONFIG } from "./config.mjs";
+import { createChatApiServer } from "./server.mjs";
 import {
   isProcessAlive,
   isPortInUse,
@@ -335,5 +337,107 @@ describe("ensureServer", () => {
     const srv = mockServer();
     const result = await ensureServer(srv, 7777, lp, log);
     assert.equal(result, null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// server.mjs — session guard (503 when deps are null)
+// ---------------------------------------------------------------------------
+
+function httpGet(port, path) {
+  return new Promise((resolve, reject) => {
+    const req = request({ hostname: "127.0.0.1", port, path, method: "GET" }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => {
+        resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString()) });
+      });
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+function httpPost(port, path, body) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const req = request({
+      hostname: "127.0.0.1", port, path, method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) },
+    }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => {
+        resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString()) });
+      });
+    });
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+describe("server session guard", () => {
+  const log = createLogger("silent");
+  let server;
+  let port;
+
+  // Start with null deps (no session)
+  const deps = {
+    sendAndWait: null,
+    send: null,
+    getMessages: null,
+    onEvent: null,
+  };
+
+  before(async () => {
+    server = createChatApiServer(deps, log);
+    port = await server.start(0);
+  });
+
+  after(async () => {
+    await server.stop();
+  });
+
+  it("returns 503 on POST /v1/responses when no session", async () => {
+    const res = await httpPost(port, "/v1/responses", { input: "hello" });
+    assert.equal(res.status, 503);
+    assert.equal(res.body.error.message, "No active session");
+  });
+
+  it("returns 503 on GET /history when no session", async () => {
+    const res = await httpGet(port, "/history");
+    assert.equal(res.status, 503);
+    assert.equal(res.body.error.message, "No active session");
+  });
+
+  it("reports session: disconnected on GET /health when no session", async () => {
+    const res = await httpGet(port, "/health");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.session, "disconnected");
+  });
+
+  it("reports session: connected on GET /health after binding deps", async () => {
+    deps.sendAndWait = async () => ({ data: { content: "ok" } });
+    deps.getMessages = async () => [];
+    const res = await httpGet(port, "/health");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.session, "connected");
+  });
+
+  it("succeeds on POST /v1/responses after binding deps", async () => {
+    deps.sendAndWait = async () => ({ data: { content: "test response" } });
+    const res = await httpPost(port, "/v1/responses", { input: "hello" });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.output_text, "test response");
+  });
+
+  it("returns 503 again after unbinding deps", async () => {
+    deps.sendAndWait = null;
+    deps.send = null;
+    deps.getMessages = null;
+    deps.onEvent = null;
+    const res = await httpPost(port, "/v1/responses", { input: "hello" });
+    assert.equal(res.status, 503);
   });
 });

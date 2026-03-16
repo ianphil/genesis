@@ -34,6 +34,7 @@ export function createApiTools(server, extDir, state, log) {
         if (running) {
           return [
             `Responses API server is running on http://127.0.0.1:${port} (agent: ${state.agentName})`,
+            `Session: ${server.hasSession() ? "connected" : "disconnected"}`,
             "",
             "Endpoints:",
             `  POST http://127.0.0.1:${port}/v1/responses  — OpenAI Responses API (compatible)`,

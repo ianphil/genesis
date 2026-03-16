@@ -7,7 +7,9 @@ import { createLogger } from "./lib/logger.mjs";
 import { getExtensionDir, getAgentName, getLockfilePath, getConfigPath } from "./lib/paths.mjs";
 import { createApiTools } from "./tools/api-tools.mjs";
 
-// Bind session methods lazily — they're set once joinSession completes
+// Bind session methods lazily — rebound on each onSessionStart,
+// nulled on onSessionEnd. The server proxies through these so it
+// survives session transitions (e.g. /clear) without recycling.
 const deps = {
   sendAndWait: null,
   send: null,
@@ -27,31 +29,42 @@ const state = {
 const configPath = () => getConfigPath(extDir, state.agentName);
 
 // Logger uses config at load time — acceptable for log level.
-// Port is read fresh in onSessionStart so config changes take effect without reload.
 const log = createLogger(loadConfig(configPath()).logLevel);
 
-const server = createChatApiServer({
-  sendAndWait: (...a) => deps.sendAndWait(...a),
-  send: (...a) => deps.send(...a),
-  getMessages: (...a) => deps.getMessages(...a),
-  onEvent: (...a) => deps.onEvent(...a),
-}, log);
+const server = createChatApiServer(deps, log);
 
+// --- Process lifecycle: start server once, clean up on exit ---
+migrateLegacyData(extDir, state.agentName);
+const config = loadConfig(configPath());
+await ensureServer(server, config.port, getLockfilePath(extDir, state.agentName), log);
+
+function cleanup() {
+  if (server.isRunning()) {
+    // stop() is async but process.on('exit') is sync — best-effort
+    server.stop();
+  }
+  removeLockfile(getLockfilePath(extDir, state.agentName));
+}
+
+process.on("exit", cleanup);
+process.on("SIGINT", () => { cleanup(); process.exit(0); });
+process.on("SIGTERM", () => { cleanup(); process.exit(0); });
+
+// --- Session lifecycle: rebind deps so the server talks to the current session ---
 const session = await joinSession({
   onPermissionRequest: approveAll,
 
   hooks: {
     onSessionStart: async () => {
-      migrateLegacyData(extDir, state.agentName);
-      const config = loadConfig(configPath());
-      log.info(`agent=${state.agentName}`);
-      await ensureServer(server, config.port, getLockfilePath(extDir, state.agentName), log);
+      log.info(`session started (agent=${state.agentName})`);
     },
 
     onSessionEnd: async () => {
-      await server.stop();
-      removeLockfile(getLockfilePath(extDir, state.agentName));
-      log.info("server stopped");
+      deps.sendAndWait = null;
+      deps.send = null;
+      deps.getMessages = null;
+      deps.onEvent = null;
+      log.info("session ended — deps unbound");
     },
   },
 

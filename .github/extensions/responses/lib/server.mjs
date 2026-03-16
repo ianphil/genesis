@@ -14,11 +14,12 @@ import {
  *   GET  /health        — liveness check
  *   GET  /history       — recent conversation history
  *
- * @param {object} deps
- * @param {Function} deps.sendAndWait  — session.sendAndWait bound to the active session
- * @param {Function} deps.send         — session.send bound to the active session
- * @param {Function} deps.getMessages  — session.getMessages bound to the active session
- * @param {Function} deps.onEvent      — session.on bound to the active session
+ * @param {object} deps  — mutable object whose properties are rebound per session.
+ *   Properties are null when no session is active.
+ * @param {Function|null} deps.sendAndWait
+ * @param {Function|null} deps.send
+ * @param {Function|null} deps.getMessages
+ * @param {Function|null} deps.onEvent
  */
 export function createChatApiServer(deps, log) {
   let server = null;
@@ -59,6 +60,11 @@ export function createChatApiServer(deps, log) {
   }
 
   async function handleHistory(req, res) {
+    if (!hasSession()) {
+      return jsonResponse(res, 503, {
+        error: { type: "server_error", message: "No active session" },
+      });
+    }
     try {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const limit = parseInt(url.searchParams.get("limit"), 10) || 0;
@@ -72,9 +78,14 @@ export function createChatApiServer(deps, log) {
     }
   }
 
+  function hasSession() {
+    return typeof deps.sendAndWait === "function";
+  }
+
   function handleHealth(_req, res) {
     jsonResponse(res, 200, {
       status: "ok",
+      session: hasSession() ? "connected" : "disconnected",
       port,
       uptime: process.uptime(),
       timestamp: Date.now(),
@@ -86,6 +97,12 @@ export function createChatApiServer(deps, log) {
   // ---------------------------------------------------------------------------
 
   async function handleResponses(req, res) {
+    if (!hasSession()) {
+      return jsonResponse(res, 503, {
+        error: { type: "server_error", message: "No active session" },
+      });
+    }
+
     let body;
     try {
       body = await readBody(req);
@@ -240,6 +257,10 @@ export function createChatApiServer(deps, log) {
 
     isRunning() {
       return server !== null;
+    },
+
+    hasSession() {
+      return hasSession();
     },
   };
 }
