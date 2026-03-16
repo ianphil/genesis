@@ -38,8 +38,6 @@ export function createApiTools(server, extDir, state, log) {
             "",
             "Endpoints:",
             `  POST http://127.0.0.1:${port}/v1/responses  — OpenAI Responses API (compatible)`,
-            `  POST http://127.0.0.1:${port}/chat          — send a message, get a response`,
-            `  GET  http://127.0.0.1:${port}/chat/stream   — SSE stream (query: ?prompt=...)`,
             `  GET  http://127.0.0.1:${port}/history        — conversation history`,
             `  GET  http://127.0.0.1:${port}/health         — health check`,
           ].join("\n");

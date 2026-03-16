@@ -56,7 +56,11 @@ const session = await joinSession({
 
   hooks: {
     onSessionStart: async () => {
-      log.info(`session started (agent=${state.agentName})`);
+      deps.sendAndWait = session.sendAndWait.bind(session);
+      deps.send = session.send.bind(session);
+      deps.getMessages = session.getMessages.bind(session);
+      deps.onEvent = session.on.bind(session);
+      log.info(`session started — deps bound (agent=${state.agentName})`);
     },
 
     onSessionEnd: async () => {
