@@ -67,7 +67,7 @@ Start talking. Tell it about your work, your team, your priorities. It captures 
 
 - **"Give me a daily report"** — your first skill in action
 - **"Remember that..."** — it captures context to the right place in the mind
-- **"Check for updates from genesis"** — pulls new skills and extensions from the template
+- **"Upgrade from genesis"** — pulls new skills and extensions from the template
 
 ## Common Operations
 
@@ -82,7 +82,7 @@ The commit skill stages, commits, and pushes. No need to leave the session.
 ### Upgrade from genesis
 
 ```
-> check for updates
+> Upgrade from genesis
 ```
 
 Pulls new skills and extensions from the genesis template registry. Non-destructive — your customizations are preserved.

@@ -52,7 +52,7 @@ Extensions give the mind ways to perceive and act on the world:
 Minds evolve. New senses and skills can be pulled from the genesis registry at any time:
 
 ```
-> Check for updates from genesis
+> Upgrade from genesis
 ```
 
 ![Upgrade](https://github.com/user-attachments/assets/36e47aa0-7981-4e4a-9a52-862771215622)

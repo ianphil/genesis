@@ -4,8 +4,8 @@ Pull new extensions and skills from the genesis template registry.
 
 ## When to Use
 
+- **"Upgrade from genesis"** — the canonical trigger, most reliable
 - "Check for updates"
-- "Upgrade from genesis"
 - "Get latest extensions"
 - "Sync from genesis"
 
