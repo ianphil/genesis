@@ -1,56 +1,37 @@
 import { approveAll } from "@github/copilot-sdk";
 import { joinSession } from "@github/copilot-sdk/extension";
 import { createChatApiServer } from "./lib/server.mjs";
-import { cleanStaleLockfile, writeLockfile, removeLockfile, migrateLegacyData, writeStartupBreadcrumb } from "./lib/lifecycle.mjs";
-import { loadConfig } from "./lib/config.mjs";
+import { removeLockfile } from "./lib/lifecycle.mjs";
 import { createLogger } from "./lib/logger.mjs";
-import { getExtensionDir, getAgentName, getLockfilePath, getConfigPath, getBreadcrumbPath } from "./lib/paths.mjs";
+import { getExtensionDir, getLockfilePath } from "./lib/paths.mjs";
 import { createApiTools } from "./tools/api-tools.mjs";
 
 const extDir = getExtensionDir();
-const agentName = getAgentName();
-const breadcrumbPath = getBreadcrumbPath(extDir, agentName);
+const log = createLogger("info");
 
-// First thing: leave a trace so crashes are diagnosable
-writeStartupBreadcrumb(breadcrumbPath, "init", { agent: agentName });
-
-const config = loadConfig(getConfigPath(extDir, agentName));
-const log = createLogger(config.logLevel);
-const lockPath = getLockfilePath(extDir, agentName);
-
-// --- Extension level (once per process) ---
-migrateLegacyData(extDir, agentName);
-cleanStaleLockfile(lockPath, log);
-
+// Server is created but NOT started. An agent must claim a namespace
+// by calling responses_restart(agent: "name") before the server listens.
 const server = createChatApiServer(log);
-const port = await server.start(config.port);
-writeLockfile(lockPath, process.pid, port);
-writeStartupBreadcrumb(breadcrumbPath, "server_up", { agent: agentName, port });
-log.info(`listening on http://127.0.0.1:${port} (agent=${agentName})`);
+const state = { agentName: null };
 
 function cleanup() {
-  server.stop();
-  removeLockfile(lockPath);
+  if (server.isRunning()) server.stop();
+  if (state.agentName) removeLockfile(getLockfilePath(extDir, state.agentName));
 }
 
 process.on("exit", cleanup);
 process.on("SIGINT", () => { cleanup(); process.exit(0); });
 process.on("SIGTERM", () => { cleanup(); process.exit(0); });
 
-// --- Session level (bind once, process dies on session end) ---
 const session = await joinSession({
   onPermissionRequest: approveAll,
 
   hooks: {
-    onSessionStart: async () => {
-      log.info(`session started (agent=${agentName})`);
-    },
-    onSessionEnd: async () => {
-      log.info("session ended");
-    },
+    onSessionStart: async () => log.info("session started"),
+    onSessionEnd: async () => log.info("session ended"),
   },
 
-  tools: createApiTools(server, extDir, agentName, log),
+  tools: createApiTools(server, extDir, state, log),
 });
 
 server.bindSession({
@@ -60,4 +41,4 @@ server.bindSession({
   onEvent: session.on.bind(session),
 });
 
-writeStartupBreadcrumb(breadcrumbPath, "ready", { agent: agentName, port });
+log.info("responses extension loaded — awaiting agent claim via responses_restart");

@@ -57,25 +57,6 @@ export function cleanStaleLockfile(lockPath, log = noopLogger) {
 }
 
 /**
- * Write a breadcrumb file that records how far startup progressed.
- * Survives crashes — if the process dies, the file shows the last stage reached.
- * Stages: "init" → "server_up" → "session_bound" → "ready"
- */
-export function writeStartupBreadcrumb(breadcrumbPath, stage, extra = {}) {
-  mkdirSync(dirname(breadcrumbPath), { recursive: true });
-  const data = { pid: process.pid, stage, ts: new Date().toISOString(), ...extra };
-  writeFileSync(breadcrumbPath, JSON.stringify(data, null, 2) + "\n");
-}
-
-export function readStartupBreadcrumb(breadcrumbPath) {
-  try {
-    return JSON.parse(readFileSync(breadcrumbPath, "utf-8"));
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Migrate legacy flat data/config.json and data/responses.lock into the
  * namespaced data/{agentName}/ directory.  Idempotent — safe to call every
  * session.  If the target file already exists the old copy is simply removed.
