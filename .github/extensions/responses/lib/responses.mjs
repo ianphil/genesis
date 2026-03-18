@@ -68,6 +68,21 @@ export function normalizeInput(input, instructions) {
 }
 
 // ---------------------------------------------------------------------------
+// Async LRO accepted response
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a 201 Accepted envelope for async LRO requests.
+ */
+export function buildAcceptedResponse() {
+  return {
+    id: responseId(),
+    status: "accepted",
+    created_at: nowUnix(),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Non-streaming response builder
 // ---------------------------------------------------------------------------
 
