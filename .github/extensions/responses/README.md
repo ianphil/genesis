@@ -51,12 +51,14 @@ for await (const event of stream) {
   "model": "copilot",
   "input": "Your prompt here",
   "instructions": "Optional system instructions",
-  "stream": false
+  "stream": false,
+  "async": false
 }
 ```
 
 `input` accepts a string or an array of `{ role, content }` conversation items.
 `instructions` is prepended as system context. `stream: true` enables SSE.
+`async: true` enables non-blocking LRO mode (see below).
 
 ## Usage
 
@@ -91,6 +93,30 @@ curl -N -X POST http://127.0.0.1:<port>/v1/responses \
 curl http://127.0.0.1:<port>/health
 ```
 
+### Async (non-blocking)
+
+For long-running requests — especially inter-agent communication — use `async: true`
+to avoid blocking the caller:
+
+```bash
+curl -s -X POST http://127.0.0.1:<port>/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{"model":"copilot","input":"Analyze the codebase","async":true}'
+```
+
+Response (immediate):
+
+```json
+{
+  "id": "resp_c705d860a3b741899d36199c60ea51cb",
+  "status": "accepted",
+  "created_at": 1710523200
+}
+```
+
+The agent processes the message in the background. The caller is free to continue
+without waiting for the LLM to finish.
+
 ## Agent Tools
 
 | Tool | Description |
@@ -103,11 +129,14 @@ curl http://127.0.0.1:<port>/health
 ```
 Extension Process (one per session, killed on /clear)
  ├── HTTP Server (127.0.0.1:<port>)
- │    ├── POST /v1/responses ──▶ session.sendAndWait()
+ │    ├── POST /v1/responses ──▶ session.sendAndWait()  (sync)
+ │    ├── POST /v1/responses ──▶ 201 Accepted + background sendAndWait  (async)
  │    ├── GET  /history       ──▶ session.getMessages()
  │    └── GET  /health        ──▶ 200 connected
  └── Lockfile (guards port across process restarts)
 ```
+
+### Synchronous (default)
 
 ```
 External Client ──POST /v1/responses──▶ HTTP Server (Node.js)
@@ -118,8 +147,24 @@ External Client ──POST /v1/responses──▶ HTTP Server (Node.js)
                                              │
                                        response.data.content
                                              │
-External Client ◀──OpenAI JSON──────── HTTP Server
+External Client ◀──200 OpenAI JSON─── HTTP Server
 ```
+
+### Async LRO (`async: true`)
+
+```
+External Client ──POST { async: true }──▶ HTTP Server
+                                              │
+External Client ◀──201 { id, status }──────── │ (instant)
+                                              │
+                  (client is free)       session.sendAndWait()
+                                              │
+                                        Copilot Agent processes in background
+```
+
+> **Note:** In this release, the background result is processed by the agent but
+> not delivered back to the caller. Result delivery (auto-reply via tunnel) is
+> planned for a future release. See [issue #38](https://github.com/ianphil/genesis/issues/38).
 
 ## Security
 
