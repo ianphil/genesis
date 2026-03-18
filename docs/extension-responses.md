@@ -56,6 +56,29 @@ curl -N -X POST http://127.0.0.1:15210/v1/responses \
 
 Stream events follow the OpenAI SSE format. Use `response.output_text.delta` events for incremental text.
 
+## Async Mode (Non-Blocking)
+
+For inter-agent communication or any scenario where the caller shouldn't block while
+the agent thinks, set `async: true`:
+
+```bash
+curl -s -X POST http://127.0.0.1:15210/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{"model":"copilot","input":"Build the auth module","async":true}'
+```
+
+Returns `201 Accepted` immediately with a correlation ID:
+
+```json
+{ "id": "resp_abc123...", "status": "accepted", "created_at": 1710523200 }
+```
+
+The agent processes the request in the background. Without `async: true`, behavior
+is unchanged — the request blocks until the agent responds.
+
+> Result delivery back to the caller is planned for a future release.
+> See [issue #38](https://github.com/ianphil/genesis/issues/38).
+
 ## Tools
 
 | Tool | Description |

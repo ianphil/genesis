@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import {
   normalizeInput,
   buildResponse,
+  buildAcceptedResponse,
   createStreamWriter,
 } from "./responses.mjs";
 
@@ -112,6 +113,15 @@ export function createChatApiServer(log) {
       metadata: body.metadata,
     };
 
+    const timeout = typeof body.timeout === "number" ? body.timeout : 120_000;
+
+    // --- Async LRO ---
+    if (body.async === true) {
+      jsonResponse(res, 201, buildAcceptedResponse());
+      session.sendAndWait({ prompt }, timeout).catch(() => {});
+      return;
+    }
+
     // --- Streaming ---
     if (body.stream === true) {
       const writer = createStreamWriter(res, opts);
@@ -165,7 +175,6 @@ export function createChatApiServer(log) {
     }
 
     // --- Non-streaming ---
-    const timeout = typeof body.timeout === "number" ? body.timeout : 120_000;
 
     try {
       const response = await session.sendAndWait({ prompt }, timeout);

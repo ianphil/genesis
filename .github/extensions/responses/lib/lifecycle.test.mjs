@@ -359,3 +359,68 @@ describe("server with bindSession", () => {
     assert.equal(res.status, 404);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Async LRO mode
+// ---------------------------------------------------------------------------
+
+describe("async LRO mode", () => {
+  const log = createLogger("silent");
+  let server;
+  let port;
+  let sendAndWaitCalls;
+
+  before(async () => {
+    sendAndWaitCalls = [];
+    server = createChatApiServer(log);
+    port = await server.start(0);
+    server.bindSession({
+      sendAndWait: async (msg, timeout) => {
+        sendAndWaitCalls.push({ msg, timeout });
+        return { data: { content: "async response" } };
+      },
+      send: async () => {},
+      getMessages: async () => [],
+      onEvent: () => () => {},
+    });
+  });
+
+  after(async () => {
+    await server.stop();
+  });
+
+  it("returns 201 with accepted envelope on async: true", async () => {
+    const res = await httpPost(port, "/v1/responses", { input: "hello", async: true });
+    assert.equal(res.status, 201);
+    assert.equal(res.body.status, "accepted");
+    assert.ok(res.body.id.startsWith("resp_"));
+    assert.equal(typeof res.body.created_at, "number");
+  });
+
+  it("still calls sendAndWait in the background", async () => {
+    sendAndWaitCalls.length = 0;
+    await httpPost(port, "/v1/responses", { input: "background work", async: true });
+    // Give the background promise a tick to resolve
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(sendAndWaitCalls.length, 1);
+    assert.equal(sendAndWaitCalls[0].msg.prompt, "background work");
+  });
+
+  it("respects custom timeout for background sendAndWait", async () => {
+    sendAndWaitCalls.length = 0;
+    await httpPost(port, "/v1/responses", { input: "timed", async: true, timeout: 60000 });
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(sendAndWaitCalls[0].timeout, 60000);
+  });
+
+  it("returns 400 on async request with missing input", async () => {
+    const res = await httpPost(port, "/v1/responses", { async: true });
+    assert.equal(res.status, 400);
+  });
+
+  it("returns 200 (not 201) without async flag", async () => {
+    const res = await httpPost(port, "/v1/responses", { input: "sync" });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, "completed");
+  });
+});
