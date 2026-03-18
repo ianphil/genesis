@@ -1,15 +1,15 @@
-import { readLockfile, removeLockfile, writeLockfile, isProcessAlive } from "../lib/lifecycle.mjs";
+import { removeLockfile, writeLockfile, cleanStaleLockfile, migrateLegacyData } from "../lib/lifecycle.mjs";
 import { loadConfig } from "../lib/config.mjs";
-import { getLockfilePath, getConfigPath } from "../lib/paths.mjs";
+import { getLockfilePath, getConfigPath, sanitizeAgentName } from "../lib/paths.mjs";
 
 /**
  * Tools exposed to the agent for managing the Responses API server.
- * @param {object} server    - The HTTP server instance
- * @param {string} extDir    - Extension root directory
- * @param {string} agentName - Agent namespace
- * @param {object} log       - Logger instance
+ * @param {object} server - The HTTP server instance
+ * @param {string} extDir - Extension root directory
+ * @param {object} state  - Mutable state ({ agentName })
+ * @param {object} log    - Logger instance
  */
-export function createApiTools(server, extDir, agentName, log) {
+export function createApiTools(server, extDir, state, log) {
   return [
     {
       name: "responses_status",
@@ -20,10 +20,14 @@ export function createApiTools(server, extDir, agentName, log) {
         properties: {},
       },
       handler: async () => {
+        if (!state.agentName) {
+          return "Responses API server is not running. Call responses_restart with agent parameter to claim a namespace and start the server.";
+        }
+
         const port = server.getPort();
         if (server.isRunning()) {
           return [
-            `Responses API server is running on http://127.0.0.1:${port} (agent: ${agentName})`,
+            `Responses API server is running on http://127.0.0.1:${port} (agent: ${state.agentName})`,
             "",
             "Endpoints:",
             `  POST http://127.0.0.1:${port}/v1/responses  — OpenAI Responses API (compatible)`,
@@ -32,43 +36,55 @@ export function createApiTools(server, extDir, agentName, log) {
           ].join("\n");
         }
 
-        const lockPath = getLockfilePath(extDir, agentName);
-        const lock = readLockfile(lockPath);
-        if (lock && isProcessAlive(lock.pid)) {
-          return `Responses API server is running in another session (pid ${lock.pid}, port ${lock.port}).`;
-        }
-        if (lock) {
-          removeLockfile(lockPath);
-          return "Responses API server is not running (stale lockfile cleaned).";
-        }
         return "Responses API server is not running.";
       },
     },
     {
       name: "responses_restart",
       description:
-        "Restart the Responses API server. Use if the server becomes unresponsive.",
+        "Start or restart the Responses API server under a named agent namespace. The agent parameter is required.",
       parameters: {
         type: "object",
         properties: {
+          agent: {
+            type: "string",
+            description:
+              "Agent namespace (e.g. 'fox', 'ender'). Determines config and lockfile paths under data/{agent}/. Required.",
+          },
           port: {
             type: "number",
             description:
-              "Port to bind to. Defaults to the configured port in data/config.json.",
+              "Port override. Defaults to the configured port in data/{agent}/config.json.",
           },
         },
+        required: ["agent"],
       },
       handler: async (args) => {
-        if (server.isRunning()) {
-          await server.stop();
+        const agentName = sanitizeAgentName(args.agent);
+        if (!agentName) {
+          return "Error: agent parameter is required and must contain valid characters [a-zA-Z0-9_-].";
         }
 
+        // Stop existing server and clean up previous namespace
+        if (server.isRunning()) {
+          await server.stop();
+          if (state.agentName) {
+            removeLockfile(getLockfilePath(extDir, state.agentName));
+          }
+        }
+
+        state.agentName = agentName;
+        migrateLegacyData(extDir, agentName);
+
         const lockPath = getLockfilePath(extDir, agentName);
-        removeLockfile(lockPath);
+        cleanStaleLockfile(lockPath, log);
+
         const config = loadConfig(getConfigPath(extDir, agentName));
         const actualPort = await server.start(args.port || config.port);
         writeLockfile(lockPath, process.pid, actualPort);
-        return `Responses API server restarted on http://127.0.0.1:${actualPort} (agent: ${agentName})`;
+
+        log.info(`server started on port ${actualPort} (agent=${agentName})`);
+        return `Responses API server started on http://127.0.0.1:${actualPort} (agent: ${agentName})`;
       },
     },
   ];
