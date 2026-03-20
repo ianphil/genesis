@@ -315,9 +315,13 @@ describe("server with bindSession", () => {
   const log = createLogger("silent");
   let server;
   let port;
+  let tmpDir;
+  const state = { agentName: "test" };
 
   before(async () => {
-    server = createChatApiServer(log);
+    tmpDir = mkdtempSync(join(tmpdir(), "resp-srv-"));
+    mkdirSync(join(tmpDir, "data", "test", "bg-jobs"), { recursive: true });
+    server = createChatApiServer(log, tmpDir, state);
     port = await server.start(0);
     server.bindSession({
       sendAndWait: async () => ({ data: { content: "test response" } }),
@@ -329,6 +333,7 @@ describe("server with bindSession", () => {
 
   after(async () => {
     await server.stop();
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("returns session: connected on GET /health", async () => {
@@ -337,8 +342,8 @@ describe("server with bindSession", () => {
     assert.equal(res.body.session, "connected");
   });
 
-  it("succeeds on POST /v1/responses", async () => {
-    const res = await httpPost(port, "/v1/responses", { input: "hello" });
+  it("succeeds on POST /v1/responses with async: false", async () => {
+    const res = await httpPost(port, "/v1/responses", { input: "hello", async: false });
     assert.equal(res.status, 200);
     assert.equal(res.body.output_text, "test response");
   });
@@ -361,24 +366,23 @@ describe("server with bindSession", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Async LRO mode
+// Async background job mode (requires cron engine)
 // ---------------------------------------------------------------------------
 
-describe("async LRO mode", () => {
+describe("async background job mode", () => {
   const log = createLogger("silent");
   let server;
   let port;
-  let sendAndWaitCalls;
+  let tmpDir;
+  const state = { agentName: "test" };
 
   before(async () => {
-    sendAndWaitCalls = [];
-    server = createChatApiServer(log);
+    tmpDir = mkdtempSync(join(tmpdir(), "resp-async-"));
+    mkdirSync(join(tmpDir, "data", "test", "bg-jobs"), { recursive: true });
+    server = createChatApiServer(log, tmpDir, state);
     port = await server.start(0);
     server.bindSession({
-      sendAndWait: async (msg, timeout) => {
-        sendAndWaitCalls.push({ msg, timeout });
-        return { data: { content: "async response" } };
-      },
+      sendAndWait: async () => ({ data: { content: "async response" } }),
       send: async () => {},
       getMessages: async () => [],
       onEvent: () => () => {},
@@ -387,40 +391,28 @@ describe("async LRO mode", () => {
 
   after(async () => {
     await server.stop();
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("returns 201 with accepted envelope on async: true", async () => {
+  it("returns 503 when cron engine is not running (default async)", async () => {
+    const res = await httpPost(port, "/v1/responses", { input: "hello" });
+    assert.equal(res.status, 503);
+    assert.ok(res.body.error.message.includes("Cron engine"));
+  });
+
+  it("returns 503 on explicit async: true without cron engine", async () => {
     const res = await httpPost(port, "/v1/responses", { input: "hello", async: true });
-    assert.equal(res.status, 201);
-    assert.equal(res.body.status, "accepted");
-    assert.ok(res.body.id.startsWith("resp_"));
-    assert.equal(typeof res.body.created_at, "number");
+    assert.equal(res.status, 503);
   });
 
-  it("still calls sendAndWait in the background", async () => {
-    sendAndWaitCalls.length = 0;
-    await httpPost(port, "/v1/responses", { input: "background work", async: true });
-    // Give the background promise a tick to resolve
-    await new Promise((r) => setTimeout(r, 50));
-    assert.equal(sendAndWaitCalls.length, 1);
-    assert.equal(sendAndWaitCalls[0].msg.prompt, "background work");
-  });
-
-  it("respects custom timeout for background sendAndWait", async () => {
-    sendAndWaitCalls.length = 0;
-    await httpPost(port, "/v1/responses", { input: "timed", async: true, timeout: 60000 });
-    await new Promise((r) => setTimeout(r, 50));
-    assert.equal(sendAndWaitCalls[0].timeout, 60000);
+  it("returns 200 on async: false (sync mode bypass)", async () => {
+    const res = await httpPost(port, "/v1/responses", { input: "sync", async: false });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, "completed");
   });
 
   it("returns 400 on async request with missing input", async () => {
     const res = await httpPost(port, "/v1/responses", { async: true });
     assert.equal(res.status, 400);
-  });
-
-  it("returns 200 (not 201) without async flag", async () => {
-    const res = await httpPost(port, "/v1/responses", { input: "sync" });
-    assert.equal(res.status, 200);
-    assert.equal(res.body.status, "completed");
   });
 });
