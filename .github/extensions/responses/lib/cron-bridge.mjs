@@ -13,7 +13,7 @@ export function getCronJobsDir(responsesExtDir, agentName) {
 export function isCronEngineRunning(responsesExtDir, agentName) {
   const lockPath = join(getCronExtDir(responsesExtDir), "data", agentName, "engine.lock");
   try {
-    const { pid } = JSON.parse(readFileSync(lockPath, "utf-8"));
+    const pid = parseInt(readFileSync(lockPath, "utf-8").trim(), 10);
     process.kill(pid, 0);
     return { running: true, pid };
   } catch {

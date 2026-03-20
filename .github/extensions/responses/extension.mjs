@@ -11,8 +11,8 @@ const log = createLogger("info");
 
 // Server is created but NOT started. An agent must claim a namespace
 // by calling responses_restart(agent: "name") before the server listens.
-const server = createChatApiServer(log, extDir, state);
 const state = { agentName: null };
+const server = createChatApiServer(log, extDir, state);
 
 function cleanup() {
   if (server.isRunning()) server.stop();
