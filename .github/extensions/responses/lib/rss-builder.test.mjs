@@ -25,7 +25,8 @@ describe("buildRssFeed", () => {
     const xml = buildRssFeed(makeJob(), makeItems(), 3000);
 
     assert.ok(xml.startsWith("<?xml"), "should start with <?xml");
-    assert.ok(xml.includes('<rss version="2.0">'), "should contain <rss version=\"2.0\">");
+    assert.ok(xml.includes('<rss version="2.0"'), "should contain <rss version=\"2.0\"");
+    assert.ok(xml.includes("xmlns:content"), "should contain content namespace");
     assert.ok(xml.includes("<channel>"), "should contain <channel>");
     assert.ok(xml.includes("Job job-001"), "should contain the job ID in the title");
     assert.ok(xml.includes("http://127.0.0.1:3000/jobs/job-001"), "should contain the port in the link URL");
@@ -96,5 +97,38 @@ describe("buildRssFeed", () => {
     const expected = new Date("2025-01-15T10:00:00Z").toUTCString();
 
     assert.ok(xml.includes(`<lastBuildDate>${expected}</lastBuildDate>`), "should fall back to createdAt");
+  });
+
+  it("includes content:encoded CDATA when item has fullText", () => {
+    const items = [{
+      title: "Response",
+      description: "Full AI response with lots of detail.",
+      timestamp: "2025-01-15T11:00:00Z",
+      fullText: "Full AI response with lots of detail.",
+    }];
+    const xml = buildRssFeed(makeJob(), items, 3000);
+
+    assert.ok(xml.includes("<content:encoded>"), "should contain content:encoded element");
+    assert.ok(xml.includes("<![CDATA[Full AI response"), "should wrap fullText in CDATA");
+    assert.ok(xml.includes("]]></content:encoded>"), "should close CDATA and element");
+  });
+
+  it("omits content:encoded when item has no fullText", () => {
+    const xml = buildRssFeed(makeJob(), makeItems(1), 3000);
+
+    assert.ok(!xml.includes("content:encoded"), "should not contain content:encoded");
+    assert.ok(!xml.includes("<![CDATA["), "should not contain CDATA");
+  });
+
+  it("truncates long descriptions with ellipsis", () => {
+    const items = [{
+      title: "Response",
+      description: "A".repeat(300),
+      timestamp: "2025-01-15T11:00:00Z",
+    }];
+    const xml = buildRssFeed(makeJob(), items, 3000);
+
+    assert.ok(!xml.includes("A".repeat(201)), "description should be truncated");
+    assert.ok(xml.includes("…"), "should contain ellipsis");
   });
 });

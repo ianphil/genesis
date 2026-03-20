@@ -66,6 +66,7 @@ export function createRunRecord(jobId) {
     outcome: null, // "success" | "failure"
     errorMessage: null,
     durationMs: null,
+    output: null,
   };
 }
 

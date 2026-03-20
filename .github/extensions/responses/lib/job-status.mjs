@@ -20,7 +20,7 @@ function readJson(filePath) {
 
 /**
  * Read the most recent run record from the cron history file.
- * History is an array of { outcome, startedAtUtc, completedAtUtc, errorMessage, durationMs }.
+ * History is an array of { outcome, startedAtUtc, completedAtUtc, errorMessage, durationMs, output }.
  * Returns the last entry or null.
  */
 function readLatestHistoryRecord(extDir, agentName, cronJobId) {
@@ -45,7 +45,9 @@ function hasCronJobFired(extDir, agentName, cronJobId) {
  * Resolve the current status of a background job by merging data from
  * the job registry, cron system, and session store into a unified timeline.
  *
- * Returns { status, statusItems } or null if the job doesn't exist.
+ * Returns { status, statusItems, response } or null if the job doesn't exist.
+ * `response` contains the full output text when available (from session store
+ * turns or cron history), or null.
  */
 export function resolveJobStatus(extDir, agentName, jobId) {
   const job = getJob(extDir, agentName, jobId);
@@ -63,13 +65,29 @@ export function resolveJobStatus(extDir, agentName, jobId) {
   const sessionItems = buildStatusItemsFromSession(job.sessionId);
   statusItems.push(...sessionItems);
 
-  // Determine resolved status
+  // Determine resolved status and capture response text
   let resolvedStatus;
+  let response = null;
 
   if (job.status === "cancelled") {
     resolvedStatus = "cancelled";
   } else if (historyRecord?.outcome === "success") {
     resolvedStatus = "completed";
+
+    // Prefer session-store turns for response text; fall back to cron history output
+    const lastTurn = sessionItems.filter((i) => i.fullText).pop();
+    response = lastTurn?.fullText || historyRecord.output || null;
+
+    // When session store is empty, surface the response from cron history
+    if (!lastTurn && historyRecord.output) {
+      statusItems.push({
+        title: "Response",
+        description: historyRecord.output,
+        timestamp: historyRecord.completedAtUtc,
+        fullText: historyRecord.output,
+      });
+    }
+
     statusItems.push({
       title: "Completed",
       description: "Job finished successfully.",
@@ -99,5 +117,5 @@ export function resolveJobStatus(extDir, agentName, jobId) {
     return 0;
   });
 
-  return { status: resolvedStatus, statusItems };
+  return { status: resolvedStatus, statusItems, response };
 }

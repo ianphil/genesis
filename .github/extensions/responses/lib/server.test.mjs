@@ -90,6 +90,17 @@ function writeCronJobFile(tmpBase, cronJobId, overrides = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: write a cron history file
+// ---------------------------------------------------------------------------
+
+function writeHistoryFile(tmpBase, cronJobId, records) {
+  writeFileSync(
+    join(tmpBase, "cron", "data", "test-agent", "history", `${cronJobId}.json`),
+    JSON.stringify(records, null, 2),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // GET /health
 // ---------------------------------------------------------------------------
 
@@ -247,6 +258,38 @@ describe("GET /jobs/:id", () => {
     assert.ok(res.body.feed_url);
     assert.ok(res.body.feed_url.includes("/feed/detail-j1"));
   });
+
+  it("returns response field with output from cron history", async () => {
+    writeJobFile(extDir, "detail-j2", { prompt: "tell me about travel" });
+    writeCronJobFile(tmpBase, "bg-detail-j2", {
+      status: "disabled",
+      schedule: { type: "oneShot", fireAtUtc: new Date().toISOString() },
+    });
+    writeHistoryFile(tmpBase, "bg-detail-j2", [{
+      runId: "run-1",
+      jobId: "bg-detail-j2",
+      startedAtUtc: new Date(Date.now() - 5000).toISOString(),
+      completedAtUtc: new Date().toISOString(),
+      outcome: "success",
+      errorMessage: null,
+      durationMs: 5000,
+      output: "Here are the top travel destinations for 2026.",
+    }]);
+    const res = await httpRequest("GET", port, "/jobs/detail-j2");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, "completed");
+    assert.equal(res.body.response, "Here are the top travel destinations for 2026.");
+    const responseSI = res.body.statusItems.find((si) => si.title === "Response");
+    assert.ok(responseSI, "should have a Response status item");
+    assert.ok(responseSI.description.includes("travel destinations"));
+  });
+
+  it("returns null response when job is still queued", async () => {
+    writeJobFile(extDir, "detail-j3", { prompt: "pending job" });
+    const res = await httpRequest("GET", port, "/jobs/detail-j3");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.response, null);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -292,6 +335,31 @@ describe("GET /feed/:jobId", () => {
   it("XML contains job ID", async () => {
     const res = await httpRequest("GET", port, "/feed/feed-j1");
     assert.ok(res.body.includes("feed-j1"));
+  });
+
+  it("includes content:encoded with full response from cron history", async () => {
+    const fullResponse = "This is a detailed AI response about travel destinations that exceeds the truncation limit and should appear in full inside content:encoded CDATA.";
+    writeJobFile(extDir, "feed-j2", { prompt: "travel destinations" });
+    writeCronJobFile(tmpBase, "bg-feed-j2", {
+      status: "disabled",
+      schedule: { type: "oneShot", fireAtUtc: new Date().toISOString() },
+    });
+    writeHistoryFile(tmpBase, "bg-feed-j2", [{
+      runId: "run-1",
+      jobId: "bg-feed-j2",
+      startedAtUtc: new Date(Date.now() - 5000).toISOString(),
+      completedAtUtc: new Date().toISOString(),
+      outcome: "success",
+      errorMessage: null,
+      durationMs: 5000,
+      output: fullResponse,
+    }]);
+    const res = await httpRequest("GET", port, "/feed/feed-j2");
+    assert.equal(res.status, 200);
+    assert.ok(res.body.includes("content:encoded"), "should contain content:encoded element");
+    assert.ok(res.body.includes("<![CDATA["), "should contain CDATA section");
+    assert.ok(res.body.includes(fullResponse), "should contain the full response text");
+    assert.ok(res.body.includes("xmlns:content"), "should include content namespace");
   });
 });
 

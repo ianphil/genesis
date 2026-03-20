@@ -334,6 +334,7 @@ export function createChatApiServer(log, extDir, state) {
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
       feed_url: feedUrl(job.id),
+      response: resolved?.response || null,
       statusItems: resolved?.statusItems || [],
     });
   }

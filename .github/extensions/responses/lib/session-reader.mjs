@@ -82,6 +82,7 @@ export function buildStatusItemsFromSession(sessionId) {
         title: `Turn ${t.turnIndex}`,
         description: truncate(t.assistantResponse),
         timestamp: t.timestamp,
+        fullText: t.assistantResponse || null,
       });
     }
   }
