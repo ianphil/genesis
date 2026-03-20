@@ -8,6 +8,7 @@ import {
   getCronExtDir,
   getCronJobsDir,
   isCronEngineRunning,
+  findRunningEngines,
   createOneShotCronJob,
 } from "./cron-bridge.mjs";
 
@@ -54,7 +55,7 @@ describe("isCronEngineRunning", () => {
   it("returns { running: true, pid } for alive PID", () => {
     const lockDir = join(tmpBase, "cron", "data", agentName);
     mkdirSync(lockDir, { recursive: true });
-    writeFileSync(join(lockDir, "engine.lock"), JSON.stringify({ pid: process.pid }));
+    writeFileSync(join(lockDir, "engine.lock"), String(process.pid));
     const result = isCronEngineRunning(responsesExtDir, agentName);
     assert.equal(result.running, true);
     assert.equal(result.pid, process.pid);
@@ -68,7 +69,7 @@ describe("isCronEngineRunning", () => {
   it("returns { running: false } for dead PID", () => {
     const lockDir = join(tmpBase, "cron", "data", "dead-agent");
     mkdirSync(lockDir, { recursive: true });
-    writeFileSync(join(lockDir, "engine.lock"), JSON.stringify({ pid: 999999 }));
+    writeFileSync(join(lockDir, "engine.lock"), "999999");
     const result = isCronEngineRunning(responsesExtDir, "dead-agent");
     assert.deepEqual(result, { running: false });
   });
@@ -76,9 +77,67 @@ describe("isCronEngineRunning", () => {
   it("returns { running: false } for corrupt lockfile", () => {
     const lockDir = join(tmpBase, "cron", "data", "corrupt-agent");
     mkdirSync(lockDir, { recursive: true });
-    writeFileSync(join(lockDir, "engine.lock"), "NOT VALID JSON");
+    writeFileSync(join(lockDir, "engine.lock"), "NOT VALID");
     const result = isCronEngineRunning(responsesExtDir, "corrupt-agent");
     assert.deepEqual(result, { running: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findRunningEngines
+// ---------------------------------------------------------------------------
+
+describe("findRunningEngines", () => {
+  let tmpBase;
+  let responsesExtDir;
+
+  before(() => {
+    tmpBase = mkdtempSync(join(tmpdir(), "cron-scan-"));
+    responsesExtDir = join(tmpBase, "responses");
+    mkdirSync(responsesExtDir, { recursive: true });
+  });
+  after(() => { rmSync(tmpBase, { recursive: true, force: true }); });
+
+  it("returns empty array when no data dir exists", () => {
+    const result = findRunningEngines(responsesExtDir);
+    assert.deepEqual(result, []);
+  });
+
+  it("finds a single running engine", () => {
+    const lockDir = join(tmpBase, "cron", "data", "alpha");
+    mkdirSync(lockDir, { recursive: true });
+    writeFileSync(join(lockDir, "engine.lock"), String(process.pid));
+    const result = findRunningEngines(responsesExtDir);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].agentName, "alpha");
+    assert.equal(result[0].pid, process.pid);
+  });
+
+  it("skips dead PIDs and corrupt lockfiles", () => {
+    const deadDir = join(tmpBase, "cron", "data", "dead");
+    mkdirSync(deadDir, { recursive: true });
+    writeFileSync(join(deadDir, "engine.lock"), "999999");
+
+    const corruptDir = join(tmpBase, "cron", "data", "corrupt");
+    mkdirSync(corruptDir, { recursive: true });
+    writeFileSync(join(corruptDir, "engine.lock"), "GARBAGE");
+
+    const result = findRunningEngines(responsesExtDir);
+    const names = result.map((e) => e.agentName);
+    assert.ok(!names.includes("dead"));
+    assert.ok(!names.includes("corrupt"));
+  });
+
+  it("finds multiple running engines", () => {
+    const betaDir = join(tmpBase, "cron", "data", "beta");
+    mkdirSync(betaDir, { recursive: true });
+    writeFileSync(join(betaDir, "engine.lock"), String(process.pid));
+
+    const result = findRunningEngines(responsesExtDir);
+    const names = result.map((e) => e.agentName).sort();
+    assert.ok(names.includes("alpha"));
+    assert.ok(names.includes("beta"));
+    assert.ok(names.length >= 2);
   });
 });
 

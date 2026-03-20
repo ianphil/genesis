@@ -9,7 +9,7 @@ import {
   createStreamWriter,
 } from "./responses.mjs";
 import { createJob, getJob, listJobs, updateJobStatus } from "./job-registry.mjs";
-import { isCronEngineRunning, createOneShotCronJob } from "./cron-bridge.mjs";
+import { isCronEngineRunning, createOneShotCronJob, findRunningEngines } from "./cron-bridge.mjs";
 import { resolveJobStatus } from "./job-status.mjs";
 import { buildRssFeed } from "./rss-builder.mjs";
 
@@ -233,6 +233,18 @@ export function createChatApiServer(log, extDir, state) {
 
     const engine = isCronEngineRunning(extDir, agentName);
     if (!engine.running) {
+      const others = findRunningEngines(extDir);
+      if (others.length > 0) {
+        const names = others.map((e) => `"${e.agentName}"`).join(", ");
+        return jsonResponse(res, 409, {
+          error: {
+            type: "configuration_error",
+            message: `No cron engine running for agent "${agentName}", but found engine(s) running as: ${names}. `
+              + `Call responses_restart(agent: ${others.length === 1 ? others[0].agentName : "NAME"}) to align, `
+              + `or set COPILOT_AGENT="${agentName}" and restart the cron engine.`,
+          },
+        });
+      }
       return jsonResponse(res, 503, {
         error: {
           type: "server_error",

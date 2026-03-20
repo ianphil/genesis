@@ -538,9 +538,11 @@ describe("POST /v1/responses", () => {
 
 describe("POST /v1/responses async with cron engine", () => {
   const log = { info() {}, error() {}, debug() {} };
-  let tmpBase, extDir, state, server, port;
+  let tmpBase, extDir, state, server, port, savedEnv;
 
   before(async () => {
+    savedEnv = process.env.COPILOT_AGENT;
+    process.env.COPILOT_AGENT = "test-agent";
     tmpBase = mkdtempSync(join(tmpdir(), "srv-async-"));
     extDir = join(tmpBase, "responses");
     mkdirSync(join(extDir, "data", "test-agent", "bg-jobs"), { recursive: true });
@@ -550,7 +552,7 @@ describe("POST /v1/responses async with cron engine", () => {
     // Fake cron engine lockfile with current PID so isCronEngineRunning returns true
     writeFileSync(
       join(tmpBase, "cron", "data", "test-agent", "engine.lock"),
-      JSON.stringify({ pid: process.pid }),
+      String(process.pid),
     );
 
     state = { agentName: "test-agent" };
@@ -566,6 +568,8 @@ describe("POST /v1/responses async with cron engine", () => {
 
   after(async () => {
     await server.stop();
+    if (savedEnv === undefined) delete process.env.COPILOT_AGENT;
+    else process.env.COPILOT_AGENT = savedEnv;
     rmSync(tmpBase, { recursive: true, force: true });
   });
 
@@ -600,6 +604,51 @@ describe("POST /v1/responses async with cron engine", () => {
     assert.equal(cronJob.id, "bg-custom-job-id");
     assert.equal(cronJob.status, "enabled");
     assert.equal(cronJob.schedule.type, "oneShot");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /v1/responses — agent namespace mismatch
+// ---------------------------------------------------------------------------
+
+describe("POST /v1/responses agent namespace mismatch", () => {
+  const log = { info() {}, error() {}, debug() {} };
+  let tmpBase, extDir, state, server, port;
+
+  before(async () => {
+    tmpBase = mkdtempSync(join(tmpdir(), "srv-mismatch-"));
+    extDir = join(tmpBase, "responses");
+    mkdirSync(join(extDir, "data", "scotty", "bg-jobs"), { recursive: true });
+    mkdirSync(join(tmpBase, "cron", "data", "different-agent"), { recursive: true });
+
+    // Engine lockfile under a DIFFERENT agent namespace — no lockfile for "scotty"
+    writeFileSync(
+      join(tmpBase, "cron", "data", "different-agent", "engine.lock"),
+      String(process.pid),
+    );
+
+    state = { agentName: "scotty" };
+    server = createChatApiServer(log, extDir, state);
+    port = await server.start(0);
+    server.bindSession({
+      sendAndWait: async () => ({ data: { content: "unused" } }),
+      send: async () => {},
+      getMessages: async () => [],
+      onEvent: () => () => {},
+    });
+  });
+
+  after(async () => {
+    await server.stop();
+    rmSync(tmpBase, { recursive: true, force: true });
+  });
+
+  it("returns 409 with informative error listing running engines", async () => {
+    const res = await httpRequest("POST", port, "/v1/responses", { input: "test" });
+    assert.equal(res.status, 409);
+    assert.equal(res.body.error.type, "configuration_error");
+    assert.ok(res.body.error.message.includes("scotty"), "should mention responses agent");
+    assert.ok(res.body.error.message.includes("different-agent"), "should mention running engine");
   });
 });
 
