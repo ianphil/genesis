@@ -147,6 +147,7 @@ async function dispatch(job) {
     record.outcome = result.success ? "success" : "failure";
     record.errorMessage = result.error || null;
     record.durationMs = result.durationMs;
+    record.output = result.output || null;
 
     // Persist history
     appendHistory(extDir, agentName, job.id, record);

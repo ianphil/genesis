@@ -105,10 +105,13 @@ timeoutSeconds: 300
 payloadType: prompt
 prompt: "Summarize my open PRs"
 model: "claude-sonnet-4"
+sessionId: null
 timeoutSeconds: 120
 ```
 
 Prompt jobs inherit the mind's identity (from `SOUL.md`) as a system message when available.
+
+`sessionId` (string, optional) — Custom session ID for prompt payloads. If provided, the Copilot session is created with this ID, enabling external tracking and correlation (e.g., by the Responses extension for background jobs).
 
 ## Examples
 

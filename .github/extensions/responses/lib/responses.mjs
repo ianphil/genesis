@@ -68,17 +68,19 @@ export function normalizeInput(input, instructions) {
 }
 
 // ---------------------------------------------------------------------------
-// Async LRO accepted response
+// Background job 202 response
 // ---------------------------------------------------------------------------
 
 /**
- * Build a 201 Accepted envelope for async LRO requests.
+ * Build a 202 Accepted envelope for background job requests.
  */
-export function buildAcceptedResponse() {
+export function build202Response(jobId, feedUrl) {
   return {
-    id: responseId(),
-    status: "accepted",
+    id: jobId,
+    object: "response",
     created_at: nowUnix(),
+    status: "queued",
+    feed_url: feedUrl,
   };
 }
 
