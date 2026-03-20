@@ -55,6 +55,7 @@ export function createCrudTools(extDir, state) {
           workingDirectory: { type: "string", description: "Working directory for command. Defaults to user home." },
           prompt: { type: "string", description: "The prompt to send to the LLM. Required for prompt payloads." },
           model: { type: "string", description: "Model override for prompt payloads (e.g. 'claude-sonnet-4.5')." },
+          sessionId: { type: "string", description: "Custom session ID for prompt payloads. If provided, the Copilot session is created with this ID for tracking." },
           timeoutSeconds: { type: "number", description: "Timeout in seconds. Default: 300 for commands, 120 for prompts." },
         },
         required: ["name", "scheduleType", "payloadType"],
@@ -90,6 +91,7 @@ export function createCrudTools(extDir, state) {
           if (!args.prompt) return "Error: prompt is required for prompt payloads.";
           payload.prompt = args.prompt;
           payload.model = args.model || null;
+          payload.sessionId = args.sessionId || null;
           payload.preloadToolNames = null;
           payload.timeoutSeconds = args.timeoutSeconds || 120;
         }

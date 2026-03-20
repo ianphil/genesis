@@ -1,6 +1,7 @@
 import { removeLockfile, writeLockfile, cleanStaleLockfile, migrateLegacyData } from "../lib/lifecycle.mjs";
 import { loadConfig } from "../lib/config.mjs";
 import { getLockfilePath, getConfigPath, sanitizeAgentName } from "../lib/paths.mjs";
+import { listJobs } from "../lib/job-registry.mjs";
 
 /**
  * Tools exposed to the agent for managing the Responses API server.
@@ -26,13 +27,21 @@ export function createApiTools(server, extDir, state, log) {
 
         const port = server.getPort();
         if (server.isRunning()) {
+          let jobCount = 0;
+          try { jobCount = listJobs(extDir, state.agentName).length; } catch { /* best effort */ }
+
           return [
             `Responses API server is running on http://127.0.0.1:${port} (agent: ${state.agentName})`,
+            `Background jobs: ${jobCount}`,
             "",
             "Endpoints:",
-            `  POST http://127.0.0.1:${port}/v1/responses  — OpenAI Responses API (compatible)`,
-            `  GET  http://127.0.0.1:${port}/history        — conversation history`,
-            `  GET  http://127.0.0.1:${port}/health         — health check`,
+            `  POST   http://127.0.0.1:${port}/v1/responses  — OpenAI Responses API (async-default, 202 + RSS)`,
+            `  GET    http://127.0.0.1:${port}/jobs            — list background jobs`,
+            `  GET    http://127.0.0.1:${port}/jobs/:id        — job detail + status items`,
+            `  GET    http://127.0.0.1:${port}/feed/:jobId     — RSS 2.0 feed for job progress`,
+            `  DELETE http://127.0.0.1:${port}/jobs/:id        — cancel a background job`,
+            `  GET    http://127.0.0.1:${port}/history         — conversation history`,
+            `  GET    http://127.0.0.1:${port}/health          — health check`,
           ].join("\n");
         }
 

@@ -137,6 +137,9 @@ export async function executePrompt(extDir, payload) {
     if (payload.model) {
       sessionOpts.model = payload.model;
     }
+    if (payload.sessionId) {
+      sessionOpts.sessionId = payload.sessionId;
+    }
     if (identity) {
       sessionOpts.systemMessage = {
         mode: "append",
