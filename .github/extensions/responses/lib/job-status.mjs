@@ -4,7 +4,8 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { buildStatusItemsFromSession } from "./session-reader.mjs";
-import { getJob, updateJobStatus } from "./job-registry.mjs";
+import { getJob, updateJobStatus, getBgJobsDir } from "./job-registry.mjs";
+import { readProgressEvents } from "./progress-reader.mjs";
 
 /**
  * Read and parse a JSON file. Returns null on any failure.
@@ -64,6 +65,11 @@ export function resolveJobStatus(extDir, agentName, jobId) {
   // Session progress data
   const sessionItems = buildStatusItemsFromSession(job.sessionId);
   statusItems.push(...sessionItems);
+
+  // Progress file data (tool calls, sub-agents, turn events)
+  const progressFilePath = join(getBgJobsDir(extDir, agentName), `${jobId}.progress.jsonl`);
+  const progressItems = readProgressEvents(progressFilePath);
+  statusItems.push(...progressItems);
 
   // Determine resolved status and capture response text
   let resolvedStatus;

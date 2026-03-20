@@ -59,6 +59,28 @@ export function getSessionCheckpoints(sessionId) {
   }
 }
 
+export function getSessionFiles(sessionId) {
+  let db;
+  try {
+    db = openDb();
+    if (!db) return [];
+    const rows = db
+      .prepare(
+        "SELECT file_path, tool_name, first_seen_at FROM session_files WHERE session_id = ? ORDER BY first_seen_at"
+      )
+      .all(sessionId);
+    return rows.map((r) => ({
+      filePath: r.file_path,
+      toolName: r.tool_name,
+      timestamp: r.first_seen_at,
+    }));
+  } catch {
+    return [];
+  } finally {
+    db?.close();
+  }
+}
+
 function truncate(text, max = 200) {
   if (!text) return "";
   return text.length > max ? text.slice(0, max) : text;
@@ -67,6 +89,7 @@ function truncate(text, max = 200) {
 export function buildStatusItemsFromSession(sessionId) {
   const turns = getSessionTurns(sessionId);
   const checkpoints = getSessionCheckpoints(sessionId);
+  const files = getSessionFiles(sessionId);
 
   const items = [];
 
@@ -92,6 +115,15 @@ export function buildStatusItemsFromSession(sessionId) {
       title: `Checkpoint: ${cp.title}`,
       description: truncate(cp.overview),
       timestamp: cp.timestamp,
+    });
+  }
+
+  for (const f of files) {
+    const verb = f.toolName === "create" ? "Created" : "Edited";
+    items.push({
+      title: `File ${verb}: ${f.filePath}`,
+      description: `${verb} via ${f.toolName}`,
+      timestamp: f.timestamp,
     });
   }
 

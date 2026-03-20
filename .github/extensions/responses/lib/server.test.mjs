@@ -1,7 +1,8 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import {
-  mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync,
+  mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync,
+  readdirSync, unlinkSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -393,20 +394,21 @@ describe("DELETE /jobs/:id", () => {
     assert.ok(res.body.error);
   });
 
-  it("cancels a queued job", async () => {
+  it("cancels and deletes a queued job", async () => {
     writeJobFile(extDir, "del-j1");
     writeCronJobFile(tmpBase, "bg-del-j1");
 
     const res = await httpRequest("DELETE", port, "/jobs/del-j1");
     assert.equal(res.status, 200);
-    assert.equal(res.body.status, "cancelled");
+    assert.equal(res.body.status, "deleted");
+    assert.equal(res.body.previousStatus, "queued");
     assert.equal(res.body.id, "del-j1");
 
-    // Verify job file was updated
-    const updatedJob = JSON.parse(
-      readFileSync(join(extDir, "data", "test-agent", "bg-jobs", "del-j1.json"), "utf-8"),
+    // Verify job file was removed
+    assert.ok(
+      !existsSync(join(extDir, "data", "test-agent", "bg-jobs", "del-j1.json")),
+      "job file should be deleted",
     );
-    assert.equal(updatedJob.status, "cancelled");
 
     // Verify cron job was disabled
     const updatedCron = JSON.parse(
@@ -416,16 +418,20 @@ describe("DELETE /jobs/:id", () => {
     assert.equal(updatedCron.nextRunAtUtc, null);
   });
 
-  it("returns 409 for already-cancelled job", async () => {
+  it("deletes an already-cancelled job", async () => {
     writeJobFile(extDir, "del-j2", { status: "cancelled" });
     const res = await httpRequest("DELETE", port, "/jobs/del-j2");
-    assert.equal(res.status, 409);
-    assert.ok(res.body.error.includes("cancelled"));
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, "deleted");
+    assert.equal(res.body.previousStatus, "cancelled");
+    assert.ok(
+      !existsSync(join(extDir, "data", "test-agent", "bg-jobs", "del-j2.json")),
+      "job file should be deleted",
+    );
   });
 
-  it("returns 409 for completed job", async () => {
+  it("deletes a completed job", async () => {
     writeJobFile(extDir, "del-j3");
-    // Write cron history so resolveJobStatus sees outcome=success → "completed"
     writeFileSync(
       join(tmpBase, "cron", "data", "test-agent", "history", "bg-del-j3.json"),
       JSON.stringify([{
@@ -436,8 +442,97 @@ describe("DELETE /jobs/:id", () => {
       }]),
     );
     const res = await httpRequest("DELETE", port, "/jobs/del-j3");
-    assert.equal(res.status, 409);
-    assert.ok(res.body.error.includes("terminal"));
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, "deleted");
+    assert.equal(res.body.previousStatus, "completed");
+    assert.ok(
+      !existsSync(join(extDir, "data", "test-agent", "bg-jobs", "del-j3.json")),
+      "job file should be deleted",
+    );
+  });
+
+  it("also deletes the progress file alongside the job", async () => {
+    writeJobFile(extDir, "del-j4", { status: "cancelled" });
+    const progressPath = join(extDir, "data", "test-agent", "bg-jobs", "del-j4.progress.jsonl");
+    writeFileSync(progressPath, '{"type":"test","title":"t","timestamp":"t"}\n');
+
+    const res = await httpRequest("DELETE", port, "/jobs/del-j4");
+    assert.equal(res.status, 200);
+    assert.ok(!existsSync(progressPath), "progress file should be deleted");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /jobs — bulk delete terminal jobs
+// ---------------------------------------------------------------------------
+
+describe("DELETE /jobs", () => {
+  const log = { info() {}, error() {}, debug() {} };
+  let tmpBase, extDir, state, server, port;
+
+  before(async () => {
+    tmpBase = mkdtempSync(join(tmpdir(), "srv-delbulk-"));
+    extDir = join(tmpBase, "responses");
+    mkdirSync(join(extDir, "data", "test-agent", "bg-jobs"), { recursive: true });
+    mkdirSync(join(tmpBase, "cron", "data", "test-agent", "jobs"), { recursive: true });
+    mkdirSync(join(tmpBase, "cron", "data", "test-agent", "history"), { recursive: true });
+    state = { agentName: "test-agent" };
+    server = createChatApiServer(log, extDir, state);
+    port = await server.start(0);
+  });
+
+  after(async () => {
+    await server.stop();
+    rmSync(tmpBase, { recursive: true, force: true });
+  });
+
+  it("deletes terminal jobs and keeps running ones", async () => {
+    // Terminal jobs — need cron history so resolveJobStatus sees them as terminal
+    writeJobFile(extDir, "bulk-done");
+    writeHistoryFile(tmpBase, "bg-bulk-done", [
+      { outcome: "success", completedAtUtc: new Date().toISOString(), durationMs: 100 },
+    ]);
+    writeJobFile(extDir, "bulk-fail");
+    writeHistoryFile(tmpBase, "bg-bulk-fail", [
+      { outcome: "failure", errorMessage: "timeout", completedAtUtc: new Date().toISOString(), durationMs: 100 },
+    ]);
+    writeJobFile(extDir, "bulk-cancel", { status: "cancelled" });
+    // Write a progress file for one
+    writeFileSync(
+      join(extDir, "data", "test-agent", "bg-jobs", "bulk-done.progress.jsonl"),
+      '{"type":"test","title":"t","timestamp":"t"}\n',
+    );
+
+    // Non-terminal job (cron hasn't fired yet, no history → status stays "queued")
+    writeJobFile(extDir, "bulk-active");
+    writeCronJobFile(tmpBase, "bg-bulk-active");
+
+    const res = await httpRequest("DELETE", port, "/jobs");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.deleted, 3);
+    assert.equal(res.body.kept, 1);
+
+    // Terminal jobs should be gone
+    assert.ok(!existsSync(join(extDir, "data", "test-agent", "bg-jobs", "bulk-done.json")));
+    assert.ok(!existsSync(join(extDir, "data", "test-agent", "bg-jobs", "bulk-done.progress.jsonl")));
+    assert.ok(!existsSync(join(extDir, "data", "test-agent", "bg-jobs", "bulk-fail.json")));
+    assert.ok(!existsSync(join(extDir, "data", "test-agent", "bg-jobs", "bulk-cancel.json")));
+
+    // Active job should remain
+    assert.ok(existsSync(join(extDir, "data", "test-agent", "bg-jobs", "bulk-active.json")));
+  });
+
+  it("returns zeros when no jobs exist", async () => {
+    // Clean up from previous test
+    const bgDir = join(extDir, "data", "test-agent", "bg-jobs");
+    for (const f of readdirSync(bgDir)) {
+      unlinkSync(join(bgDir, f));
+    }
+
+    const res = await httpRequest("DELETE", port, "/jobs");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.deleted, 0);
+    assert.equal(res.body.kept, 0);
   });
 });
 
@@ -683,6 +778,7 @@ describe("404 handler", () => {
     assert.ok(res.body.endpoints["POST /v1/responses"]);
     assert.ok(res.body.endpoints["GET /jobs"]);
     assert.ok(res.body.endpoints["GET /jobs/:id"]);
+    assert.ok(res.body.endpoints["DELETE /jobs"]);
     assert.ok(res.body.endpoints["DELETE /jobs/:id"]);
     assert.ok(res.body.endpoints["GET /feed/:jobId"]);
   });

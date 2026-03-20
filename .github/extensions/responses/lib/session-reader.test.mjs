@@ -8,6 +8,7 @@ import {
   getSessionStorePath,
   getSessionTurns,
   getSessionCheckpoints,
+  getSessionFiles,
   buildStatusItemsFromSession,
 } from "./session-reader.mjs";
 
@@ -86,6 +87,28 @@ describe("getSessionCheckpoints", () => {
 });
 
 // ---------------------------------------------------------------------------
+// getSessionFiles — defensive behaviour
+// ---------------------------------------------------------------------------
+
+describe("getSessionFiles", () => {
+  it("returns an array for a bogus sessionId", () => {
+    const result = getSessionFiles(BOGUS_SESSION);
+    assert.ok(Array.isArray(result));
+  });
+
+  it("returns empty array when no files match", () => {
+    const result = getSessionFiles(BOGUS_SESSION);
+    assert.deepEqual(result, []);
+  });
+
+  it("never throws", () => {
+    assert.doesNotThrow(() => getSessionFiles(undefined));
+    assert.doesNotThrow(() => getSessionFiles(null));
+    assert.doesNotThrow(() => getSessionFiles(""));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // buildStatusItemsFromSession — defensive behaviour
 // ---------------------------------------------------------------------------
 
@@ -122,6 +145,11 @@ describe("with real session-store.db", { skip: !dbExists && "session-store.db no
 
   it("getSessionCheckpoints returns array with expected shape", () => {
     const result = getSessionCheckpoints(BOGUS_SESSION);
+    assert.ok(Array.isArray(result));
+  });
+
+  it("getSessionFiles returns array with expected shape", () => {
+    const result = getSessionFiles(BOGUS_SESSION);
     assert.ok(Array.isArray(result));
   });
 

@@ -39,7 +39,8 @@ export function createApiTools(server, extDir, state, log) {
             `  GET    http://127.0.0.1:${port}/jobs            — list background jobs`,
             `  GET    http://127.0.0.1:${port}/jobs/:id        — job detail + status items`,
             `  GET    http://127.0.0.1:${port}/feed/:jobId     — RSS 2.0 feed for job progress`,
-            `  DELETE http://127.0.0.1:${port}/jobs/:id        — cancel a background job`,
+            `  DELETE http://127.0.0.1:${port}/jobs            — delete all terminal jobs`,
+            `  DELETE http://127.0.0.1:${port}/jobs/:id        — delete a specific job`,
             `  GET    http://127.0.0.1:${port}/history         — conversation history`,
             `  GET    http://127.0.0.1:${port}/health          — health check`,
           ].join("\n");

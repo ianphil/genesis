@@ -166,4 +166,34 @@ describe("resolveJobStatus", () => {
       );
     }
   });
+
+  it("merges progress file events into statusItems", () => {
+    const job = makeJob({ id: "p1", cronJobId: "cron-p1" });
+    writeJson(jobRegistryPath(extDir, AGENT, "p1"), job);
+    writeJson(cronJobPath(extDir, AGENT, "cron-p1"), {
+      status: "disabled",
+      schedule: { type: "oneShot" },
+    });
+
+    // Write a progress JSONL file
+    const progressPath = join(extDir, "data", AGENT, "bg-jobs", "p1.progress.jsonl");
+    const lines = [
+      JSON.stringify({ type: "tool_start", title: "Tool: grep", description: "searching", timestamp: "2025-01-01T00:00:02.000Z" }),
+      JSON.stringify({ type: "tool_complete", title: "✓ grep", description: "found 5 matches", timestamp: "2025-01-01T00:00:03.000Z" }),
+    ];
+    writeFileSync(progressPath, lines.join("\n") + "\n");
+
+    const result = resolveJobStatus(extDir, AGENT, "p1");
+    assert.ok(result.statusItems.some((s) => s.title === "Tool: grep"), "should include tool_start from progress file");
+    assert.ok(result.statusItems.some((s) => s.title === "✓ grep"), "should include tool_complete from progress file");
+  });
+
+  it("handles missing progress file gracefully", () => {
+    const job = makeJob({ id: "np1", cronJobId: "cron-np1" });
+    writeJson(jobRegistryPath(extDir, AGENT, "np1"), job);
+
+    const result = resolveJobStatus(extDir, AGENT, "np1");
+    assert.ok(result);
+    assert.ok(Array.isArray(result.statusItems));
+  });
 });

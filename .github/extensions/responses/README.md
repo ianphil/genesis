@@ -16,7 +16,8 @@ Use `async: false` for synchronous blocking, or `stream: true` for SSE.
 | `GET`    | `/jobs`           | List background jobs (`?status=`, `?limit=`)             |
 | `GET`    | `/jobs/:id`       | Single job detail with status timeline                   |
 | `GET`    | `/feed/:jobId`    | RSS 2.0 XML feed of job status updates                   |
-| `DELETE` | `/jobs/:id`       | Cancel a background job (409 if terminal)                |
+| `DELETE` | `/jobs`           | Delete all terminal jobs (completed, failed, cancelled)  |
+| `DELETE` | `/jobs/:id`       | Delete a specific job (cancels if running, then deletes) |
 | `GET`    | `/history?limit=N`| Conversation history (last N messages, or all)           |
 | `GET`    | `/health`         | Liveness check with job count and uptime                 |
 
@@ -157,11 +158,14 @@ POST /v1/responses
 - **cancelled** — Cancelled via `DELETE /jobs/:id`. If already running, execution may continue.
 
 Status is resolved lazily on each request by merging data from the job registry,
-cron system (job file + history records), and session store (turns + checkpoints).
+cron system (job file + history records), session store (turns + checkpoints),
+and progress file (tool calls, sub-agents, turn events captured during execution).
 
 ### RSS Feed
 
-`GET /feed/:jobId` returns an RSS 2.0 XML feed with time-series status updates:
+`GET /feed/:jobId` returns an RSS 2.0 XML feed with time-series status updates.
+During execution, the feed includes incremental updates for tool calls, sub-agent
+activity, file operations, and agent turns — not just start/end events.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -185,10 +189,28 @@ cron system (job file + history records), and session store (turns + checkpoints
       <guid isPermaLink="false">job_a1b2c3d4-2024-03-15T12:00:03.000Z</guid>
     </item>
     <item>
+      <title>Tool: grep</title>
+      <description>pattern: TODO|FIXME</description>
+      <pubDate>Thu, 15 Mar 2024 12:00:05 GMT</pubDate>
+      <guid isPermaLink="false">job_a1b2c3d4-2024-03-15T12:00:05.000Z</guid>
+    </item>
+    <item>
+      <title>✓ grep</title>
+      <description>Found 15 matches across 8 files</description>
+      <pubDate>Thu, 15 Mar 2024 12:00:06 GMT</pubDate>
+      <guid isPermaLink="false">job_a1b2c3d4-2024-03-15T12:00:06.000Z</guid>
+    </item>
+    <item>
       <title>Checkpoint: Analyzing files</title>
       <description>Found 42 source files across 8 directories.</description>
       <pubDate>Thu, 15 Mar 2024 12:00:15 GMT</pubDate>
       <guid isPermaLink="false">job_a1b2c3d4-2024-03-15T12:00:15.000Z</guid>
+    </item>
+    <item>
+      <title>File Edited: src/auth.ts</title>
+      <description>Edited via edit</description>
+      <pubDate>Thu, 15 Mar 2024 12:00:20 GMT</pubDate>
+      <guid isPermaLink="false">job_a1b2c3d4-2024-03-15T12:00:20.000Z</guid>
     </item>
     <item>
       <title>Completed</title>
@@ -199,6 +221,18 @@ cron system (job file + history records), and session store (turns + checkpoints
   </channel>
 </rss>
 ```
+
+**Status item types:**
+
+| Source | Example titles |
+|--------|---------------|
+| Job registry | "Job Created" |
+| Session turns | "Processing Started", "Turn 1", "Turn 2" |
+| Session checkpoints | "Checkpoint: Analyzing files" |
+| Session files | "File Edited: src/auth.ts", "File Created: README.md" |
+| Progress file | "Tool: grep", "✓ grep", "✗ powershell", "Agent turn started" |
+| Progress file | "Sub-agent: explore codebase", "Sub-agent completed" |
+| Cron history | "Completed", "Failed" |
 
 Status items are built from session turns and checkpoints stored in `~/.copilot/session-store.db`.
 
@@ -269,7 +303,8 @@ curl -s http://127.0.0.1:15210/feed/job_a1b2c3d4e5f6g7h8
 
 #### DELETE /jobs/:id
 
-Cancel a background job. Returns `409 Conflict` if the job is already in a terminal state (`completed`, `failed`, or `cancelled`).
+Delete a background job. If the job is running or queued, it is cancelled first
+(cron job disabled). All job files (registry + progress) are removed.
 
 ```bash
 curl -s -X DELETE http://127.0.0.1:15210/jobs/job_a1b2c3d4e5f6g7h8
@@ -278,13 +313,29 @@ curl -s -X DELETE http://127.0.0.1:15210/jobs/job_a1b2c3d4e5f6g7h8
 ```json
 {
   "id": "job_a1b2c3d4e5f6g7h8",
-  "status": "cancelled",
-  "message": "Job cancelled before execution."
+  "status": "deleted",
+  "previousStatus": "completed",
+  "message": "Job deleted (was completed)."
 }
 ```
 
-If the job is `queued`, the cron job is disabled before it fires. If `running`,
-the cancellation is recorded but the active session may continue to completion.
+Works on any job state — queued, running, completed, failed, or cancelled.
+
+#### DELETE /jobs
+
+Bulk-delete all jobs in a terminal state (completed, failed, cancelled).
+Running and queued jobs are left untouched.
+
+```bash
+curl -s -X DELETE http://127.0.0.1:15210/jobs
+```
+
+```json
+{
+  "deleted": 5,
+  "kept": 2
+}
+```
 
 ## Agent Tools
 
@@ -308,7 +359,8 @@ Extension Process (one per session, killed on /clear)
  │    ├── GET  /jobs          ──▶ list background jobs
  │    ├── GET  /jobs/:id      ──▶ job detail + status items
  │    ├── GET  /feed/:jobId   ──▶ RSS 2.0 XML feed
- │    ├── DELETE /jobs/:id    ──▶ cancel job
+ │    ├── DELETE /jobs         ──▶ bulk-delete terminal jobs
+ │    ├── DELETE /jobs/:id    ──▶ delete job (cancel if active)
  │    ├── GET  /history       ──▶ session.getMessages()
  │    └── GET  /health        ──▶ 200 { status, jobs, uptime }
  └── Lockfile (data/{agent}/responses.lock)
@@ -419,10 +471,11 @@ responses/
 │   ├── server.mjs             # HTTP server, request router, all endpoint handlers
 │   ├── responses.mjs          # OpenAI envelope builders (200, 202, SSE stream)
 │   ├── job-registry.mjs       # Background job CRUD (one JSON file per job)
-│   ├── job-status.mjs         # Lazy status resolution (registry + cron + session)
+│   ├── job-status.mjs         # Lazy status resolution (registry + cron + session + progress)
 │   ├── cron-bridge.mjs        # Creates one-shot cron jobs, checks engine status
 │   ├── rss-builder.mjs        # RSS 2.0 XML feed builder
-│   ├── session-reader.mjs     # Reads session turns/checkpoints from session-store.db
+│   ├── session-reader.mjs     # Reads session turns/checkpoints/files from session-store.db
+│   ├── progress-reader.mjs    # Reads JSONL progress files (tool calls, sub-agents)
 │   ├── config.mjs             # Config loader (port, logLevel)
 │   ├── lifecycle.mjs          # Lockfile management, stale cleanup, legacy migration
 │   ├── paths.mjs              # Path helpers (data dir, lockfile, config)
@@ -434,7 +487,8 @@ responses/
     ├── config.json            # Port and log level config
     ├── responses.lock         # PID + port lockfile
     └── bg-jobs/               # One JSON file per background job
-        └── {jobId}.json
+        ├── {jobId}.json
+        └── {jobId}.progress.jsonl  # Tool call / event log (JSONL)
 ```
 
 ## Security

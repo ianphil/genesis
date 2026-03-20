@@ -89,3 +89,13 @@ export function removeJob(extDir, agentName, jobId) {
     return false;
   }
 }
+
+/** Delete a job's progress JSONL file. Returns true if deleted, false if not found. */
+export function removeProgressFile(extDir, agentName, jobId) {
+  try {
+    unlinkSync(join(getBgJobsDir(extDir, agentName), `${jobId}.progress.jsonl`));
+    return true;
+  } catch {
+    return false;
+  }
+}

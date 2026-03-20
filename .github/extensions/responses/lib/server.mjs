@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
-import { resolve as pathResolve } from "node:path";
+import { resolve as pathResolve, join } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import {
   normalizeInput,
@@ -8,7 +8,7 @@ import {
   build202Response,
   createStreamWriter,
 } from "./responses.mjs";
-import { createJob, getJob, listJobs, updateJobStatus } from "./job-registry.mjs";
+import { createJob, getJob, listJobs, updateJobStatus, removeJob, removeProgressFile, getBgJobsDir } from "./job-registry.mjs";
 import { isCronEngineRunning, createOneShotCronJob, findRunningEngines } from "./cron-bridge.mjs";
 import { resolveJobStatus } from "./job-status.mjs";
 import { buildRssFeed } from "./rss-builder.mjs";
@@ -256,6 +256,7 @@ export function createChatApiServer(log, extDir, state) {
     const jobId = body.id || `job_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
     const cronJobId = `bg-${jobId}`;
     const sessionId = `${agentName}-${jobId}`;
+    const progressFilePath = join(getBgJobsDir(extDir, agentName), `${jobId}.progress.jsonl`);
 
     try {
       createOneShotCronJob(extDir, agentName, {
@@ -264,6 +265,7 @@ export function createChatApiServer(log, extDir, state) {
         sessionId,
         model: body.model || null,
         timeoutSeconds: Math.ceil(timeout / 1000),
+        progressFilePath,
       });
 
       createJob(extDir, agentName, { id: jobId, cronJobId, sessionId, prompt });
@@ -376,7 +378,7 @@ export function createChatApiServer(log, extDir, state) {
   }
 
   // ---------------------------------------------------------------------------
-  // DELETE /jobs/:id — cancel a job
+  // DELETE /jobs/:id — cancel or delete a job
   // ---------------------------------------------------------------------------
 
   function handleDeleteJob(_req, res, jobId) {
@@ -392,40 +394,64 @@ export function createChatApiServer(log, extDir, state) {
 
     const resolved = resolveJobStatus(extDir, agentName, jobId);
     const currentStatus = resolved?.status || job.status;
+    const terminalStates = new Set(["completed", "failed", "cancelled"]);
 
-    if (currentStatus === "completed" || currentStatus === "failed") {
-      return jsonResponse(res, 409, {
-        error: "Job is already in a terminal state",
-        status: currentStatus,
-      });
-    }
-
-    if (currentStatus === "cancelled") {
-      return jsonResponse(res, 409, { error: "Job is already cancelled" });
-    }
-
-    // Best-effort: disable the cron job if it hasn't fired yet
-    try {
-      const cronJobPath = pathResolve(extDir, "..", "cron", "data", agentName, "jobs", `${job.cronJobId}.json`);
-      const cronJob = JSON.parse(readFileSync(cronJobPath, "utf-8"));
-      if (cronJob.status === "enabled") {
-        cronJob.status = "disabled";
-        cronJob.nextRunAtUtc = null;
-        writeFileSync(cronJobPath, JSON.stringify(cronJob, null, 2), "utf-8");
+    if (!terminalStates.has(currentStatus)) {
+      // Running or queued — cancel the cron job first
+      try {
+        const cronJobPath = pathResolve(extDir, "..", "cron", "data", agentName, "jobs", `${job.cronJobId}.json`);
+        const cronJob = JSON.parse(readFileSync(cronJobPath, "utf-8"));
+        if (cronJob.status === "enabled") {
+          cronJob.status = "disabled";
+          cronJob.nextRunAtUtc = null;
+          writeFileSync(cronJobPath, JSON.stringify(cronJob, null, 2), "utf-8");
+        }
+      } catch {
+        // Cron job may have already fired or been cleaned up
       }
-    } catch {
-      // Cron job may have already fired or been cleaned up
     }
 
-    updateJobStatus(extDir, agentName, jobId, "cancelled");
+    // Delete the job registry file and progress file
+    removeJob(extDir, agentName, jobId);
+    removeProgressFile(extDir, agentName, jobId);
 
-    jsonResponse(res, 200, {
-      id: jobId,
-      status: "cancelled",
-      message: currentStatus === "queued"
-        ? "Job cancelled before execution."
-        : "Job marked as cancelled. Running execution may continue to completion.",
-    });
+    const message = terminalStates.has(currentStatus)
+      ? `Job deleted (was ${currentStatus}).`
+      : currentStatus === "queued"
+        ? "Job cancelled and deleted before execution."
+        : "Job cancelled and deleted. Running execution may continue to completion.";
+
+    jsonResponse(res, 200, { id: jobId, status: "deleted", previousStatus: currentStatus, message });
+  }
+
+  // ---------------------------------------------------------------------------
+  // DELETE /jobs — bulk-delete all terminal jobs
+  // ---------------------------------------------------------------------------
+
+  function handleDeleteAllJobs(_req, res) {
+    const agentName = state.agentName;
+    if (!agentName) {
+      return jsonResponse(res, 200, { deleted: 0, kept: 0 });
+    }
+
+    const terminalStates = new Set(["completed", "failed", "cancelled"]);
+    const jobs = listJobs(extDir, agentName);
+    let deleted = 0;
+    let kept = 0;
+
+    for (const job of jobs) {
+      const resolved = resolveJobStatus(extDir, agentName, job.id);
+      const status = resolved?.status || job.status;
+      if (terminalStates.has(status)) {
+        removeJob(extDir, agentName, job.id);
+        removeProgressFile(extDir, agentName, job.id);
+        deleted++;
+      } else {
+        kept++;
+      }
+    }
+
+    jsonResponse(res, 200, { deleted, kept });
   }
 
   // ---------------------------------------------------------------------------
@@ -448,6 +474,7 @@ export function createChatApiServer(log, extDir, state) {
     if (path === "/history" && req.method === "GET") return handleHistory(req, res);
     if (path === "/v1/responses" && req.method === "POST") return handleResponses(req, res);
     if (path === "/jobs" && req.method === "GET") return handleListJobs(req, res);
+    if (path === "/jobs" && req.method === "DELETE") return handleDeleteAllJobs(req, res);
 
     // /jobs/:id
     const jobMatch = path.match(/^\/jobs\/([^/]+)$/);
@@ -465,7 +492,8 @@ export function createChatApiServer(log, extDir, state) {
         "GET /jobs": "List background jobs with RSS feed URLs",
         "GET /jobs/:id": "Single job detail with status items",
         "GET /feed/:jobId": "RSS 2.0 XML feed for job progress",
-        "DELETE /jobs/:id": "Cancel a background job",
+        "DELETE /jobs": "Delete all terminal jobs (completed, failed, cancelled)",
+        "DELETE /jobs/:id": "Delete a specific job (cancels if running)",
         "GET /history?limit=N": "Conversation history (last N messages, or all)",
         "GET /health": "Health check",
       },
