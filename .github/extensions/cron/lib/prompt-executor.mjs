@@ -304,6 +304,19 @@ export async function executePrompt(extDir, payload) {
 
     const output = response?.data?.content || response?.content || "";
 
+    // Write the final response to the progress file so it's available via RSS/jobs API
+    if (payload.progressFilePath && output) {
+      try {
+        appendEvent(payload.progressFilePath, {
+          type: "response",
+          title: "Response",
+          description: truncate(output),
+          fullText: output,
+          timestamp: new Date().toISOString(),
+        });
+      } catch { /* fire-and-forget */ }
+    }
+
     return {
       success: true,
       output,

@@ -4,7 +4,7 @@
   "channel": "main",
   "extensions": {
     "cron": {
-      "version": "0.3.0",
+      "version": "0.3.1",
       "path": ".github/extensions/cron",
       "description": "Scheduled job execution — cron, interval, and one-shot with prompt and command payloads"
     },
