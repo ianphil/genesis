@@ -80,9 +80,10 @@ export function resolveJobStatus(extDir, agentName, jobId) {
   } else if (historyRecord?.outcome === "success") {
     resolvedStatus = "completed";
 
-    // Prefer session-store turns for response text; fall back to cron history output
+    // Prefer session-store turns for response text; fall back to progress file, then cron history
     const lastTurn = sessionItems.filter((i) => i.fullText).pop();
-    response = lastTurn?.fullText || historyRecord.output || null;
+    const lastProgress = progressItems.filter((i) => i.fullText).pop();
+    response = lastTurn?.fullText || lastProgress?.fullText || historyRecord.output || null;
 
     // When session store is empty, surface the response from cron history
     if (!lastTurn && historyRecord.output) {
