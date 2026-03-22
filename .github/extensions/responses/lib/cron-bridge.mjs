@@ -53,7 +53,7 @@ export function findRunningEngines(responsesExtDir) {
   return engines;
 }
 
-export function createOneShotCronJob(responsesExtDir, agentName, { cronJobId, prompt, sessionId, model, timeoutSeconds, progressFilePath }) {
+export function createOneShotCronJob(responsesExtDir, agentName, { cronJobId, prompt, sessionId, model, timeoutSeconds }) {
   const jobsDir = getCronJobsDir(responsesExtDir, agentName);
   if (!existsSync(jobsDir)) mkdirSync(jobsDir, { recursive: true });
 
@@ -73,7 +73,6 @@ export function createOneShotCronJob(responsesExtDir, agentName, { cronJobId, pr
       prompt,
       model: model ?? null,
       sessionId: sessionId ?? null,
-      progressFilePath: progressFilePath ?? null,
       preloadToolNames: null,
       timeoutSeconds: timeoutSeconds ?? 300,
     },
