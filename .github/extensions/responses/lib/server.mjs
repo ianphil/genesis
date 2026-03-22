@@ -2,6 +2,8 @@ import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { resolve as pathResolve, join } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { createRequire } from "node:module";
 import {
   normalizeInput,
   buildResponse,
@@ -12,6 +14,11 @@ import { createJob, getJob, listJobs, updateJobStatus, removeJob, removeProgress
 import { isCronEngineRunning, createOneShotCronJob, findRunningEngines } from "./cron-bridge.mjs";
 import { resolveJobStatus } from "./job-status.mjs";
 import { buildRssFeed } from "./rss-builder.mjs";
+// Session RSS (#49) — reads SDK's native events.jsonl
+import { readEvents, readSession } from "./events-reader.mjs";
+import { buildSessionRSS } from "./session-rss.mjs";
+
+const require = createRequire(import.meta.url);
 
 /**
  * Creates an HTTP server that bridges external clients to the Copilot session
@@ -79,6 +86,25 @@ export function createChatApiServer(log, extDir, state) {
 
   function feedUrl(jobId) {
     return `http://127.0.0.1:${port}/feed/${jobId}`;
+  }
+
+  function sessionUrl(sessionId) {
+    return `http://127.0.0.1:${port}/sessions/${encodeURIComponent(sessionId)}`;
+  }
+
+  /** Query session-store.db synchronously. Returns [] on any error. */
+  function querySessionStore(sql, params = []) {
+    try {
+      const dbPath = join(homedir(), ".copilot", "session-store.db");
+      const Database = require("better-sqlite3");
+      const db = new Database(dbPath, { readonly: true });
+      const rows = db.prepare(sql).all(...params);
+      db.close();
+      return rows;
+    } catch (e) {
+      log.debug(`session-store query failed: ${e.message}`);
+      return [];
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -256,7 +282,6 @@ export function createChatApiServer(log, extDir, state) {
     const jobId = body.id || `job_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
     const cronJobId = `bg-${jobId}`;
     const sessionId = `${agentName}-${jobId}`;
-    const progressFilePath = join(getBgJobsDir(extDir, agentName), `${jobId}.progress.jsonl`);
 
     try {
       createOneShotCronJob(extDir, agentName, {
@@ -265,13 +290,18 @@ export function createChatApiServer(log, extDir, state) {
         sessionId,
         model: body.model || null,
         timeoutSeconds: Math.ceil(timeout / 1000),
-        progressFilePath,
       });
 
       createJob(extDir, agentName, { id: jobId, cronJobId, sessionId, prompt });
 
       log.info(`background job created: ${jobId} (cron=${cronJobId}, session=${sessionId})`);
-      jsonResponse(res, 202, build202Response(jobId, feedUrl(jobId)));
+
+      // Return both legacy feed_url and new session URLs
+      const response202 = build202Response(jobId, feedUrl(jobId));
+      response202.session_id = sessionId;
+      response202.session_url = sessionUrl(sessionId);
+      response202.session_json_url = `${sessionUrl(sessionId)}/json`;
+      jsonResponse(res, 202, response202);
     } catch (err) {
       log.error(`failed to create background job: ${err.message}`);
       jsonResponse(res, 500, {
@@ -455,6 +485,80 @@ export function createChatApiServer(log, extDir, state) {
   }
 
   // ---------------------------------------------------------------------------
+  // GET /sessions — list sessions from session-store.db
+  // ---------------------------------------------------------------------------
+
+  function handleListSessions(req, res) {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const prefix = url.searchParams.get("prefix") || "";
+    const since = url.searchParams.get("since") || "";
+    const limit = parseInt(url.searchParams.get("limit"), 10) || 50;
+
+    let sql = "SELECT id, cwd, repository, branch, summary, created_at, updated_at FROM sessions WHERE 1=1";
+    const params = [];
+
+    if (prefix) {
+      sql += " AND id LIKE ?";
+      params.push(`${prefix}%`);
+    }
+    if (since) {
+      sql += " AND created_at >= ?";
+      params.push(since);
+    }
+    sql += " ORDER BY created_at DESC LIMIT ?";
+    params.push(limit);
+
+    const rows = querySessionStore(sql, params);
+    const sessions = rows.map((r) => ({
+      id: r.id,
+      summary: r.summary || null,
+      repository: r.repository || null,
+      branch: r.branch || null,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      feed_url: sessionUrl(r.id),
+    }));
+
+    jsonResponse(res, 200, { sessions });
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /sessions/:id — RSS 2.0 feed from events.jsonl
+  // ---------------------------------------------------------------------------
+
+  function handleGetSessionRSS(_req, res, sessionId) {
+    const info = readSession(sessionId);
+    if (!info) {
+      return jsonResponse(res, 404, { error: "Session not found", id: sessionId });
+    }
+
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const xml = buildSessionRSS(sessionId, info.prompt || sessionId, baseUrl, info.timeline);
+    xmlResponse(res, 200, xml);
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /sessions/:id/json — JSON status + response + timeline
+  // ---------------------------------------------------------------------------
+
+  function handleGetSessionJSON(_req, res, sessionId) {
+    const info = readSession(sessionId);
+    if (!info) {
+      return jsonResponse(res, 404, { error: "Session not found", id: sessionId });
+    }
+
+    jsonResponse(res, 200, {
+      id: sessionId,
+      status: info.status,
+      response: info.response,
+      fullText: info.fullText || null,
+      prompt: info.prompt || null,
+      timeline: info.timeline || [],
+      feed_url: sessionUrl(sessionId),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Request router
   // ---------------------------------------------------------------------------
 
@@ -481,20 +585,34 @@ export function createChatApiServer(log, extDir, state) {
     if (jobMatch && req.method === "GET") return handleGetJob(req, res, decodeURIComponent(jobMatch[1]));
     if (jobMatch && req.method === "DELETE") return handleDeleteJob(req, res, decodeURIComponent(jobMatch[1]));
 
-    // /feed/:jobId
+    // /feed/:jobId (legacy)
     const feedMatch = path.match(/^\/feed\/([^/]+)$/);
     if (feedMatch && req.method === "GET") return handleFeed(req, res, decodeURIComponent(feedMatch[1]));
+
+    // --- Session RSS routes (#49) ---
+    if (path === "/sessions" && req.method === "GET") return handleListSessions(req, res);
+
+    // /sessions/:id/json
+    const sessionJsonMatch = path.match(/^\/sessions\/([^/]+)\/json$/);
+    if (sessionJsonMatch && req.method === "GET") return handleGetSessionJSON(req, res, decodeURIComponent(sessionJsonMatch[1]));
+
+    // /sessions/:id (RSS)
+    const sessionMatch = path.match(/^\/sessions\/([^/]+)$/);
+    if (sessionMatch && req.method === "GET") return handleGetSessionRSS(req, res, decodeURIComponent(sessionMatch[1]));
 
     jsonResponse(res, 404, {
       error: "Not found",
       endpoints: {
         "POST /v1/responses": "OpenAI Responses API (async-default, 202 + RSS feed URL)",
-        "GET /jobs": "List background jobs with RSS feed URLs",
-        "GET /jobs/:id": "Single job detail with status items",
-        "GET /feed/:jobId": "RSS 2.0 XML feed for job progress",
-        "DELETE /jobs": "Delete all terminal jobs (completed, failed, cancelled)",
-        "DELETE /jobs/:id": "Delete a specific job (cancels if running)",
-        "GET /history?limit=N": "Conversation history (last N messages, or all)",
+        "GET /sessions": "List sessions (filterable: ?prefix=, ?since=, ?limit=)",
+        "GET /sessions/:id": "RSS 2.0 XML feed for session events",
+        "GET /sessions/:id/json": "JSON status + response + timeline",
+        "GET /jobs": "List background jobs (legacy)",
+        "GET /jobs/:id": "Single job detail (legacy)",
+        "GET /feed/:jobId": "RSS 2.0 XML feed for job progress (legacy)",
+        "DELETE /jobs": "Delete all terminal jobs",
+        "DELETE /jobs/:id": "Delete a specific job",
+        "GET /history?limit=N": "Conversation history",
         "GET /health": "Health check",
       },
     });
