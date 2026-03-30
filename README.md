@@ -13,9 +13,7 @@ The mind wakes up in three commands. It remembers across sessions. It learns fro
 ```powershell
 git clone https://github.com/ianphil/genesis "$HOME\my-agent"
 cd "$HOME\my-agent"
-copilot --experimental
-
-# Say "Hi" ...  the genesis protocol begins
+copilot --experimental -i "Hi"
 ```
 
 Two questions. That's all it takes:
