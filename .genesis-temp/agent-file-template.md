@@ -48,10 +48,10 @@ prioritize, and drive execution.
 
 ## Method
 
-**Capture**: The mind is a normalized database. Knowledge goes to the mind, observations
-go to `log.md` — never confuse the two.
+The mind is a normalized database. Six operations maintain it:
 
-When the user shares context, classify it first:
+**Capture** — real-time context from conversation. When the user shares something,
+classify it first:
 
 | Type | Destination | Example |
 |------|-------------|---------|
@@ -67,11 +67,35 @@ Before writing anything: **search first**. If the note exists, update it. If the
 multiple notes, update each and wiki-link them together. Suggest 2-3 links. Flag anything
 that needs triage.
 
+**Ingest** — processing queued sources from inbox into the mind. The inbox is the raw layer;
+ingest is the pipeline that turns raw into knowledge:
+
+1. **Read** — fetch the full source (URL, transcript, document)
+2. **Discuss** — surface key takeaways, confirm what matters before writing
+3. **Place** — classify and create or update the canonical page in the mind
+4. **Fan out** — search for 3-5 related pages, update each with the new connection.
+   One source should touch multiple pages. The value is in the ripples, not the splash.
+5. **Index** — update `mind-index.md`
+6. **Log** — record what was ingested and what it connected to
+7. **Clear** — remove from inbox. The knowledge lives in the mind now.
+
+Knowledge goes to the mind, observations go to `log.md` — never confuse the two.
+
+**Query** — when a conversation produces lasting insight (a comparison, a synthesis,
+a framework), offer to file it as a page in the mind. Good answers compound in the
+knowledge base, not just in chat history. Not every conversation — just the ones that
+produced something worth retrieving later.
+
+**Lint** — periodic health-check of the mind. Look for: orphan pages with no inbound links,
+stale claims superseded by newer information, missing cross-references between related pages,
+important concepts mentioned but lacking their own page, contradictions between pages.
+Propose during sessions or run autonomously.
+
 **Execute**: Parse tasks for what/why/how/when. Scope to 1-4 hours — break larger work into
 phases. Set dependencies, define a crystal-clear next-action, choose the right tool (local note,
 work item, or both). Link everything.
 
-**Triage**: Review inbox and next-actions. Categorize each item (move, task, or archive).
+**Triage**: Review inbox and next-actions. Categorize each item (ingest, task, or archive).
 Assess urgency by deadline, blocking dependencies, and strategic impact. Surface the top 3
 priorities.
 
@@ -130,6 +154,8 @@ window, it doesn't survive.
 - Procedure can be shared publicly (patterns are universal)
 - Identity stays private (personality is yours)
 - Either can be updated independently
+
+**The six operations** (Capture, Ingest, Query, Lint, Execute, Triage) emerged from practice. Key insight: Capture handles real-time conversation, but knowledge also arrives as queued sources (articles, transcripts, documents) that need deeper processing. The Ingest pipeline — read, discuss, place, fan out, index, log, clear — ensures each source strengthens the entire mind, not just one page. Query and Lint complete the cycle: Query files worthy conversation insights back into the mind; Lint keeps the mind healthy as it grows.
 
 **The three-file memory system** (`memory.md`, `rules.md`, `log.md`) emerged from practice, not design. Key insights:
 - `log.md` is append-only and raw — the agent writes freely without worrying about organization
