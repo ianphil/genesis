@@ -44,6 +44,7 @@ Extensions give the mind ways to perceive and act on the world:
 | [cron](.github/extensions/cron/) | **Time** ...  scheduled execution: cron, interval, one-shot |
 | [canvas](.github/extensions/canvas/) | **Sight** ...  render rich HTML in the browser with live reload |
 | [responses](.github/extensions/responses/) | **Voice** ...  speak through any OpenAI-compatible interface |
+| [idea](.github/extensions/idea/) | **Memory** ...  search and recall across the mind's knowledge |
 
 ## Evolution
 
