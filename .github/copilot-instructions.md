@@ -138,7 +138,7 @@ Using `.genesis-temp/working-memory-example.md` and `.genesis-temp/rules-example
 
 ---
 
-## Step 7: Clean Up
+## Step 7: Clean Up & Install Dependencies
 
 ```bash
 rm -rf .genesis-temp
@@ -146,11 +146,40 @@ rm -rf .genesis-temp
 
 Templates have been consumed — remove them.
 
+Install dependencies for all extensions that need them (silent, no questions):
+
+```bash
+for dir in .github/extensions/*/; do
+  [ -f "$dir/package.json" ] && (cd "$dir" && npm install --no-fund --no-audit --quiet)
+done
+```
+
+On Windows (PowerShell):
+
+```powershell
+Get-ChildItem .github\extensions -Directory | ForEach-Object {
+  if (Test-Path "$($_.FullName)\package.json") {
+    Push-Location $_.FullName; npm install --no-fund --no-audit --quiet; Pop-Location
+  }
+}
+```
+
 ---
 
 ## Step 8: Finalize
 
 Create `mind-index.md` cataloging the files generated (SOUL.md, memory files, agent file).
+
+Set up the IDEA search index so the mind is searchable from the first session:
+
+```bash
+npx --prefix .github/extensions/idea qmd collection add domains ./domains
+npx --prefix .github/extensions/idea qmd collection add initiatives ./initiatives
+npx --prefix .github/extensions/idea qmd collection add expertise ./expertise
+npx --prefix .github/extensions/idea qmd collection add inbox ./inbox
+npx --prefix .github/extensions/idea qmd collection add working-memory ./.working-memory
+npx --prefix .github/extensions/idea qmd update
+```
 
 Replace `.github/copilot-instructions.md` using `.genesis-temp/copilot-instructions-template.md` as your blueprint. Tailor it to `{ROLE}` and `{CHARACTER}`. **This overwrites GENESIS** — the bootstrap is done.
 

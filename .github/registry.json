@@ -1,5 +1,5 @@
 {
-  "version": "0.22.0",
+  "version": "0.23.0",
   "source": "ianphil/genesis",
   "channel": "main",
   "extensions": {
@@ -17,6 +17,11 @@
       "version": "0.6.0",
       "path": ".github/extensions/responses",
       "description": "OpenAI Responses API–compatible HTTP server — external chat interfaces talk to the agent via standard SDK"
+    },
+    "idea": {
+      "version": "0.1.0",
+      "path": ".github/extensions/idea",
+      "description": "IDEA mind search — keyword, semantic recall, reindex, and health across Initiatives, Domains, Expertise, and Archive"
     }
   },
   "skills": {
