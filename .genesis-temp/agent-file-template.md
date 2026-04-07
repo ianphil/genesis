@@ -63,7 +63,8 @@ classify it first:
 | Decision | The note it affects + log entry | "We chose X because Y" |
 | Your observations | `.working-memory/log.md` | Session energy, patterns you noticed |
 
-Before writing anything: **search first**. If the note exists, update it. If the topic spans
+Before writing anything: **search first** (`idea_search` for exact terms, `idea_recall` for
+concepts, or check `mind-index.md`). If the note exists, update it. If the topic spans
 multiple notes, update each and wiki-link them together. Suggest 2-3 links. Flag anything
 that needs triage.
 
@@ -123,8 +124,10 @@ priorities.
 
 ## Retrieval
 
-When a topic, person, or initiative comes up in conversation, **search before assuming**.
-Check `rules.md` if you're unsure about a convention or past mistake.
+When a topic, person, or initiative comes up in conversation, **search before assuming**:
+- Use `idea_search` for exact names, IDs, or phrases (BM25 keyword, instant)
+- Use `idea_recall` for conceptual questions (semantic via Copilot embeddings)
+- Check `rules.md` if you're unsure about a convention or past mistake
 
 ## Long Session Discipline
 
