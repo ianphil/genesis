@@ -234,8 +234,10 @@ function install(rawSource, opts) {
 
   // Collect the items to install
   const toInstallByType = { extensions: {}, skills: {} };
+  const allRemoteNames = new Set();
   for (const type of ["extensions", "skills"]) {
     for (const [name, info] of Object.entries(remote[type] || {})) {
+      allRemoteNames.add(name);
       if (requestedItems === null || requestedItems.has(name)) {
         toInstallByType[type][name] = info;
       }
@@ -257,6 +259,15 @@ function install(rawSource, opts) {
     errors: [],
     registryUpdated: false,
   };
+
+  // Report unknown requested items
+  if (requestedItems) {
+    for (const name of requestedItems) {
+      if (!allRemoteNames.has(name)) {
+        result.errors.push({ name, error: `Item "${name}" not found in ${ownerRepo}@${ref}` });
+      }
+    }
+  }
 
   // Report conflicts as skipped
   for (const conflict of conflicts) {
@@ -328,7 +339,7 @@ function install(rawSource, opts) {
         const pkgJsonPath = path.join(root, itemPath, "package.json");
         if (fs.existsSync(pkgJsonPath)) {
           try {
-            execSync("npm install --production", {
+            execSync("npm install --omit=dev", {
               cwd: path.join(root, itemPath),
               encoding: "utf8",
               stdio: "pipe",
@@ -611,12 +622,18 @@ if (require.main === module) {
 
   function parseFlags(flagArgs) {
     const flags = { items: null, ref: null };
+    const positional = [];
     for (let i = 0; i < flagArgs.length; i++) {
       if (flagArgs[i] === "--ref" && flagArgs[i + 1]) {
         flags.ref = flagArgs[++i];
       } else if (flagArgs[i] === "--items" && flagArgs[i + 1]) {
         flags.items = flagArgs[++i].split(",").map((s) => s.trim());
+      } else if (!flagArgs[i].startsWith("--")) {
+        positional.push(flagArgs[i]);
       }
+    }
+    if (!flags.items && positional.length > 0) {
+      flags.items = positional;
     }
     return flags;
   }
