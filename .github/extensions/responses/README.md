@@ -95,7 +95,44 @@ Response (`202 Accepted`) — prompt sent to the agent's current session:
 The agent executes the prompt in its own session. No job tracking, no RSS feed —
 use `async: true` (default) if you need those. Use `stream: true` if you need
 to see the response.
+
+### Delivery Envelope
+
+Every prompt delivered via the Responses API is prepended with a structured
+envelope so the receiving agent knows how the message arrived and how to handle
+responses. The agent sees this before the actual prompt:
+
+**Fire-and-forget (`async: false`):**
+
 ```
+[Responses API envelope]
+- Delivery: fire-and-forget (async: false)
+- The caller received 202 Accepted and disconnected.
+- If no reply is needed, process silently.
+```
+
+**Streaming (`stream: true`):**
+
+```
+[Responses API envelope]
+- Delivery: streaming (SSE)
+- The caller is connected and receiving output in real time.
+- Respond normally.
+```
+
+**Background job (`async: true`, default):**
+
+```
+[Responses API envelope]
+- Delivery: background job (async: true)
+- Job ID: job_a1b2c3d4e5f6g7h8
+- Feed URL: http://127.0.0.1:15210/feed/job_a1b2c3d4e5f6g7h8
+- Your work is tracked in the RSS feed. Complete the task.
+```
+
+The envelope is context, not a command — the agent uses judgment about whether
+to reply, and reply-to addressing is the caller's responsibility to include in
+the message body.
 
 ### Streaming
 

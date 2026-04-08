@@ -91,6 +91,31 @@ export function createChatApiServer(log, extDir, state) {
     return `http://127.0.0.1:${port}/sessions/${encodeURIComponent(sessionId)}`;
   }
 
+  /**
+   * Build a delivery envelope prepended to the prompt so the receiving agent
+   * knows how this message arrived and how to handle responses.
+   */
+  function buildEnvelope(mode, opts = {}) {
+    const lines = ["[Responses API envelope]"];
+
+    if (mode === "fire-and-forget") {
+      lines.push("- Delivery: fire-and-forget (async: false)");
+      lines.push("- The caller received 202 Accepted and disconnected.");
+      lines.push("- If no reply is needed, process silently.");
+    } else if (mode === "streaming") {
+      lines.push("- Delivery: streaming (SSE)");
+      lines.push("- The caller is connected and receiving output in real time.");
+      lines.push("- Respond normally.");
+    } else if (mode === "background") {
+      lines.push("- Delivery: background job (async: true)");
+      if (opts.jobId) lines.push(`- Job ID: ${opts.jobId}`);
+      if (opts.feedUrl) lines.push(`- Feed URL: ${opts.feedUrl}`);
+      lines.push("- Your work is tracked in the RSS feed. Complete the task.");
+    }
+
+    return lines.join("\n") + "\n\n";
+  }
+
   /** Query session-store.db synchronously. Returns [] on any error. */
   function querySessionStore(sql, params = []) {
     try {
@@ -199,7 +224,7 @@ export function createChatApiServer(log, extDir, state) {
       });
 
       try {
-        await session.send({ prompt });
+        await session.send({ prompt: buildEnvelope("streaming") + prompt });
       } catch (err) {
         unsubs.forEach((fn) => fn());
         return writer.error(err.message);
@@ -230,7 +255,7 @@ export function createChatApiServer(log, extDir, state) {
     // --- Fire-and-forget on current session (async: false) ---
     if (body.async === false) {
       try {
-        await session.send({ prompt });
+        await session.send({ prompt: buildEnvelope("fire-and-forget") + prompt });
         jsonResponse(res, 202, {
           object: "response",
           created_at: Math.floor(Date.now() / 1000),
@@ -285,11 +310,12 @@ export function createChatApiServer(log, extDir, state) {
     const jobId = body.id || `job_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
     const cronJobId = `bg-${jobId}`;
     const sessionId = `${agentName}-${jobId}`;
+    const envelopedPrompt = buildEnvelope("background", { jobId, feedUrl: feedUrl(jobId) }) + prompt;
 
     try {
       createOneShotCronJob(extDir, agentName, {
         cronJobId,
-        prompt,
+        prompt: envelopedPrompt,
         sessionId,
         model: body.model || null,
         timeoutSeconds: Math.ceil(timeout / 1000),
