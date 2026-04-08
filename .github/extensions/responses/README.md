@@ -6,7 +6,8 @@ HTTP and get results back as JSON, SSE streams, or RSS feeds.
 
 **Async is the default.** `POST /v1/responses` returns `202 Accepted` with a job
 ID and RSS feed URL. The prompt executes in the background via the cron engine.
-Use `async: false` for synchronous blocking, or `stream: true` for SSE.
+Use `async: false` for fire-and-forget on the current session, or `stream: true`
+for SSE.
 
 ## Endpoints
 
@@ -44,8 +45,8 @@ Use `async: false` for synchronous blocking, or `stream: true` for SSE.
 | `instructions` | string              | —       | Prepended as system context                                    |
 | `id`           | string              | auto    | Custom job ID. Auto-generated as `job_{shortUuid}` if omitted  |
 | `stream`       | boolean             | `false` | `true` → SSE streaming response                               |
-| `async`        | boolean             | `true`  | `false` → synchronous blocking. Default is async background job |
-| `timeout`      | number (ms)         | `120000`| Timeout for sync requests                                      |
+| `async`        | boolean             | `true`  | `false` → fire-and-forget on current session. Default is async background job |
+| `timeout`      | number (ms)         | `120000`| Timeout for async background jobs                              |
 | `previous_response_id` | string     | —       | Chain responses for multi-turn conversations                   |
 | `temperature`  | number              | `1.0`   | Passed through in response envelope                            |
 | `metadata`     | object              | `{}`    | Passed through in response envelope                            |
@@ -72,32 +73,28 @@ Response (`202 Accepted`):
 
 The caller polls `feed_url` or `GET /jobs/:id` for progress and results.
 
-### Synchronous
+### Fire-and-Forget (Current Session)
 
 ```bash
 curl -s -X POST http://127.0.0.1:15210/v1/responses \
   -H "Content-Type: application/json" \
-  -d '{"model":"copilot","input":"What files are in this repo?","async":false}'
+  -d '{"model":"copilot","input":"Refactor the auth module","async":false}'
 ```
 
-Response (`200 OK`) — standard OpenAI Responses API envelope:
+Response (`202 Accepted`) — prompt sent to the agent's current session:
 
 ```json
 {
-  "id": "resp_c705d860a3b741899d36199c60ea51cb",
   "object": "response",
   "created_at": 1710523200,
-  "status": "completed",
-  "model": "copilot-agent",
-  "output": [{
-    "type": "message",
-    "id": "msg_...",
-    "status": "completed",
-    "role": "assistant",
-    "content": [{ "type": "output_text", "text": "..." }]
-  }],
-  "output_text": "..."
+  "status": "accepted",
+  "message": "Prompt sent to current session"
 }
+```
+
+The agent executes the prompt in its own session. No job tracking, no RSS feed —
+use `async: true` (default) if you need those. Use `stream: true` if you need
+to see the response.
 ```
 
 ### Streaming
@@ -354,7 +351,7 @@ writes a lockfile at `data/{agent}/responses.lock`.
 Extension Process (one per session, killed on /clear)
  ├── HTTP Server (127.0.0.1:{port})
  │    ├── POST /v1/responses ──▶ 202 + cron one-shot   (default: async)
- │    ├── POST /v1/responses ──▶ session.sendAndWait()  (async: false)
+ │    ├── POST /v1/responses ──▶ session.send() + 202   (async: false, fire-forget)
  │    ├── POST /v1/responses ──▶ SSE stream             (stream: true)
  │    ├── GET  /jobs          ──▶ list background jobs
  │    ├── GET  /jobs/:id      ──▶ job detail + status items
@@ -397,16 +394,17 @@ Client ──GET /jobs/:id──▶ resolveJobStatus()
 Client ◀──200 { status, statusItems }
 ```
 
-### Sync Flow (`async: false`)
+### Fire-and-Forget Flow (`async: false`)
 
 ```
 Client ──POST { async: false }──▶ Responses Server
                                         │
-                                  session.sendAndWait()
+                                  session.send()  (non-blocking)
+                                        │
+Client ◀──202 Accepted──────── Responses Server
                                         │
                                   Copilot Agent ──▶ tools, files, etc.
-                                        │
-Client ◀──200 OpenAI JSON────── Responses Server
+                                  (continues in background)
 ```
 
 ## Usage Examples
@@ -445,12 +443,13 @@ curl -s -X POST http://127.0.0.1:15210/v1/responses \
   -d '{"model":"copilot","input":"Run the test suite","id":"test-run-001"}'
 ```
 
-### Synchronous request
+### Fire-and-forget request
 
 ```bash
 curl -s -X POST http://127.0.0.1:15210/v1/responses \
   -H "Content-Type: application/json" \
-  -d '{"model":"copilot","input":"What time is it?","async":false}'
+  -d '{"model":"copilot","input":"Refactor the auth module","async":false}'
+# → 202 { "status": "accepted", "message": "Prompt sent to current session" }
 ```
 
 ### Health check
