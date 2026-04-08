@@ -1,5 +1,5 @@
 {
-  "version": "0.23.0",
+  "version": "0.24.0",
   "source": "ianphil/genesis",
   "channel": "main",
   "extensions": {
@@ -14,9 +14,9 @@
       "description": "Display rich HTML content in the browser with SSE live reload"
     },
     "responses": {
-      "version": "0.8.0",
+      "version": "0.9.0",
       "path": ".github/extensions/responses",
-      "description": "OpenAI Responses API–compatible HTTP server — external chat interfaces talk to the agent via standard SDK"
+      "description": "OpenAI Responses API–compatible HTTP server — XML message envelopes with sender identification via X-Agent-Name header"
     },
     "idea": {
       "version": "0.1.0",
@@ -44,6 +44,11 @@
       "version": "0.2.0",
       "path": ".github/skills/packages",
       "description": "Install, remove, and manage extensions and skills from third-party Genesis packages"
+    },
+    "yellow-pages": {
+      "version": "0.1.0",
+      "path": ".github/skills/yellow-pages",
+      "description": "Agent directory and unified comms — send messages to local or remote agents via contacts.json registry"
     }
   },
   "packages": []
