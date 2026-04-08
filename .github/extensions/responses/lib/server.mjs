@@ -6,7 +6,6 @@ import { homedir } from "node:os";
 import { createRequire } from "node:module";
 import {
   normalizeInput,
-  buildResponse,
   build202Response,
   createStreamWriter,
 } from "./responses.mjs";
@@ -228,17 +227,21 @@ export function createChatApiServer(log, extDir, state) {
       return;
     }
 
-    // --- Sync (explicit opt-in with async: false) ---
+    // --- Fire-and-forget on current session (async: false) ---
     if (body.async === false) {
       try {
-        const response = await session.sendAndWait({ prompt }, timeout);
-        const content = response?.data?.content ?? "(no response)";
-        jsonResponse(res, 200, buildResponse(content, opts));
+        await session.send({ prompt });
+        jsonResponse(res, 202, {
+          object: "response",
+          created_at: Math.floor(Date.now() / 1000),
+          status: "accepted",
+          message: "Prompt sent to current session",
+        });
       } catch (err) {
         jsonResponse(res, 502, {
           error: {
             type: "server_error",
-            message: "Agent failed to respond",
+            message: "Failed to send prompt to session",
             detail: err.message,
           },
         });
