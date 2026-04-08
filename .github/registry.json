@@ -41,7 +41,7 @@
       "description": "Pull new extensions and skills from the genesis template registry; migrate channel-based registries to package-based"
     },
     "packages": {
-      "version": "0.1.0",
+      "version": "0.2.0",
       "path": ".github/skills/packages",
       "description": "Install, remove, and manage extensions and skills from third-party Genesis packages"
     }
