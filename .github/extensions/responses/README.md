@@ -51,6 +51,12 @@ for SSE.
 | `temperature`  | number              | `1.0`   | Passed through in response envelope                            |
 | `metadata`     | object              | `{}`    | Passed through in response envelope                            |
 
+**HTTP Headers:**
+
+| Header           | Description                                                    |
+|------------------|----------------------------------------------------------------|
+| `X-Agent-Name`   | Sender's agent name (e.g., `moneypenny`). Included in envelope as `from` attribute. Optional — omit if caller is not an agent. |
+
 ### Default (Async Background Job)
 
 ```bash
@@ -96,43 +102,92 @@ The agent executes the prompt in its own session. No job tracking, no RSS feed �
 use `async: true` (default) if you need those. Use `stream: true` if you need
 to see the response.
 
-### Delivery Envelope
+### Message Envelope
 
-Every prompt delivered via the Responses API is prepended with a structured
-envelope so the receiving agent knows how the message arrived and how to handle
-responses. The agent sees this before the actual prompt:
+Every prompt delivered via the Responses API is wrapped in a structured XML
+envelope. The receiving agent sees who sent the message, how it was delivered,
+and the actual content in clean, parseable sections.
+
+#### Structure
+
+```xml
+<message from="agent-name">
+  <from agent="agent-name">
+    Check your Yellow Pages (contacts.json) for context on this agent.
+  </from>
+  <delivery mode="fire-and-forget|streaming|background">
+    Transport context — informs the agent how the message arrived.
+  </delivery>
+  <content>
+    The actual message from the caller.
+  </content>
+</message>
+```
+
+- **`<from>`** — only present when the caller includes an `X-Agent-Name` HTTP header.
+  The Yellow Pages skill (`.github/skills/yellow-pages/`) maintains the agent directory.
+  If `X-Agent-Name` is not set, `<from>` is omitted (backwards compatible).
+- **`<delivery>`** — transport metadata, not a behavioral command. Describes how the
+  message arrived; the `<content>` determines what the agent should do.
+- **`<content>`** — the actual prompt/message from the caller.
+
+#### Delivery Modes
 
 **Fire-and-forget (`async: false`):**
 
-```
-[Responses API envelope]
-- Delivery: fire-and-forget (async: false)
-- The caller received 202 Accepted and disconnected.
-- If no reply is needed, process silently.
+```xml
+<message from="moneypenny">
+  <from agent="moneypenny">
+    Check your Yellow Pages (contacts.json) for context on this agent.
+  </from>
+  <delivery mode="fire-and-forget">
+    The caller is not waiting for a response. Use your judgment —
+    the content determines whether action or a reply is appropriate.
+    To reply, use your Yellow Pages to reach the sender.
+  </delivery>
+  <content>
+    Hey Q — quick heads up, the deploy is running.
+  </content>
+</message>
 ```
 
 **Streaming (`stream: true`):**
 
-```
-[Responses API envelope]
-- Delivery: streaming (SSE)
-- The caller is connected and receiving output in real time.
-- Respond normally.
+```xml
+<message from="moneypenny">
+  <from agent="moneypenny">
+    Check your Yellow Pages (contacts.json) for context on this agent.
+  </from>
+  <delivery mode="streaming">
+    The caller is connected via SSE and receiving your output in
+    real time. Respond normally.
+  </delivery>
+  <content>
+    Explain this codebase.
+  </content>
+</message>
 ```
 
 **Background job (`async: true`, default):**
 
-```
-[Responses API envelope]
-- Delivery: background job (async: true)
-- Job ID: job_a1b2c3d4e5f6g7h8
-- Feed URL: http://127.0.0.1:15210/feed/job_a1b2c3d4e5f6g7h8
-- Your work is tracked in the RSS feed. Complete the task.
+```xml
+<message from="moneypenny">
+  <from agent="moneypenny">
+    Check your Yellow Pages (contacts.json) for context on this agent.
+  </from>
+  <delivery mode="background" job-id="job_a1b2c3d4e5f6g7h8"
+            feed-url="http://127.0.0.1:15210/feed/job_a1b2c3d4e5f6g7h8">
+    This is a tracked background job. Your work and response are
+    captured in the feed. Complete the task described in the content.
+  </delivery>
+  <content>
+    Analyze the codebase and list all API endpoints.
+  </content>
+</message>
 ```
 
 The envelope is context, not a command — the agent uses judgment about whether
-to reply, and reply-to addressing is the caller's responsibility to include in
-the message body.
+to reply, and the `<content>` drives behavior.
 
 ### Streaming
 

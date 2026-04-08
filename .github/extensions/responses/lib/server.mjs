@@ -92,28 +92,48 @@ export function createChatApiServer(log, extDir, state) {
   }
 
   /**
-   * Build a delivery envelope prepended to the prompt so the receiving agent
-   * knows how this message arrived and how to handle responses.
+   * Build an XML message envelope wrapping the prompt. The receiving agent sees
+   * structured metadata (who sent it, how it arrived) and the actual message
+   * content in clean, parseable sections.
    */
-  function buildEnvelope(mode, opts = {}) {
-    const lines = ["[Responses API envelope]"];
+  function buildEnvelope(mode, prompt, opts = {}) {
+    const fromAttr = opts.from ? ` from="${opts.from}"` : "";
+    const lines = [`<message${fromAttr}>`];
 
-    if (mode === "fire-and-forget") {
-      lines.push("- Delivery: fire-and-forget (async: false)");
-      lines.push("- The caller received 202 Accepted and disconnected.");
-      lines.push("- If no reply is needed, process silently.");
-    } else if (mode === "streaming") {
-      lines.push("- Delivery: streaming (SSE)");
-      lines.push("- The caller is connected and receiving output in real time.");
-      lines.push("- Respond normally.");
-    } else if (mode === "background") {
-      lines.push("- Delivery: background job (async: true)");
-      if (opts.jobId) lines.push(`- Job ID: ${opts.jobId}`);
-      if (opts.feedUrl) lines.push(`- Feed URL: ${opts.feedUrl}`);
-      lines.push("- Your work is tracked in the RSS feed. Complete the task.");
+    if (opts.from) {
+      lines.push(`  <from agent="${opts.from}">`);
+      lines.push(`    Check your Yellow Pages (contacts.json) for context on this agent.`);
+      lines.push(`  </from>`);
     }
 
-    return lines.join("\n") + "\n\n";
+    if (mode === "fire-and-forget") {
+      lines.push(`  <delivery mode="fire-and-forget">`);
+      lines.push(`    The caller is not waiting for a response. Use your judgment —`);
+      lines.push(`    the content determines whether action or a reply is appropriate.`);
+      lines.push(`    To reply, use your Yellow Pages to reach the sender.`);
+      lines.push(`  </delivery>`);
+    } else if (mode === "streaming") {
+      lines.push(`  <delivery mode="streaming">`);
+      lines.push(`    The caller is connected via SSE and receiving your output in`);
+      lines.push(`    real time. Respond normally.`);
+      lines.push(`  </delivery>`);
+    } else if (mode === "background") {
+      const attrs = [];
+      if (opts.jobId) attrs.push(`job-id="${opts.jobId}"`);
+      if (opts.feedUrl) attrs.push(`feed-url="${opts.feedUrl}"`);
+      const attrStr = attrs.length ? " " + attrs.join(" ") : "";
+      lines.push(`  <delivery mode="background"${attrStr}>`);
+      lines.push(`    This is a tracked background job. Your work and response are`);
+      lines.push(`    captured in the feed. Complete the task described in the content.`);
+      lines.push(`  </delivery>`);
+    }
+
+    lines.push(`  <content>`);
+    lines.push(prompt);
+    lines.push(`  </content>`);
+    lines.push(`</message>`);
+
+    return lines.join("\n");
   }
 
   /** Query session-store.db synchronously. Returns [] on any error. */
@@ -194,6 +214,7 @@ export function createChatApiServer(log, extDir, state) {
     }
 
     const prompt = normalizeInput(input, body.instructions);
+    const fromAgent = req.headers["x-agent-name"] || null;
     const opts = {
       model: body.model,
       previousResponseId: body.previous_response_id,
@@ -224,7 +245,7 @@ export function createChatApiServer(log, extDir, state) {
       });
 
       try {
-        await session.send({ prompt: buildEnvelope("streaming") + prompt });
+        await session.send({ prompt: buildEnvelope("streaming", prompt, { from: fromAgent }) });
       } catch (err) {
         unsubs.forEach((fn) => fn());
         return writer.error(err.message);
@@ -255,7 +276,7 @@ export function createChatApiServer(log, extDir, state) {
     // --- Fire-and-forget on current session (async: false) ---
     if (body.async === false) {
       try {
-        await session.send({ prompt: buildEnvelope("fire-and-forget") + prompt });
+        await session.send({ prompt: buildEnvelope("fire-and-forget", prompt, { from: fromAgent }) });
         jsonResponse(res, 202, {
           object: "response",
           created_at: Math.floor(Date.now() / 1000),
@@ -310,7 +331,7 @@ export function createChatApiServer(log, extDir, state) {
     const jobId = body.id || `job_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
     const cronJobId = `bg-${jobId}`;
     const sessionId = `${agentName}-${jobId}`;
-    const envelopedPrompt = buildEnvelope("background", { jobId, feedUrl: feedUrl(jobId) }) + prompt;
+    const envelopedPrompt = buildEnvelope("background", prompt, { jobId, feedUrl: feedUrl(jobId), from: fromAgent });
 
     try {
       createOneShotCronJob(extDir, agentName, {
