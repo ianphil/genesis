@@ -5,6 +5,7 @@
 // Usage:
 //   node upgrade.js check              — compare local vs remote registry
 //   node upgrade.js install name1,name2 — install/update selected items
+//   node upgrade.js install --all       — install/update everything from remote registry
 //   node upgrade.js remove name1,name2  — remove selected items from local
 //   node upgrade.js pin name1,name2     — pin items to prevent removal
 //   node upgrade.js channel <name>      — switch release channel (e.g. main, frontier)
@@ -403,15 +404,6 @@ function install(names) {
           }
           entry.renamedFrom = oldName;
         }
-
-        if (isNew) {
-          result.installed.push(entry);
-        } else {
-          result.updated.push({
-            ...entry,
-            from: localItems[name].version,
-          });
-        }
       } catch (e) {
         result.errors.push({
           name,
@@ -748,15 +740,36 @@ if (require.main === module) {
       check();
       break;
     case "install":
-      if (!args[0]) {
+      if (args[0] === "--all") {
+        const allRoot = findRepoRoot();
+        const allLocal = readLocalRegistry(allRoot);
+        const allParsed = parseSource(allLocal.source);
+        const allBranch = resolveChannel(allLocal);
+        const allRemoteRaw = gh(
+          `/repos/${allParsed.owner}/${allParsed.repo}/contents/.github/registry.json?ref=${allBranch}`
+        );
+        const allRemote = JSON.parse(
+          Buffer.from(allRemoteRaw.content, "base64").toString("utf8")
+        );
+        const allNames = [
+          ...Object.keys(allRemote.extensions || {}),
+          ...Object.keys(allRemote.skills || {}),
+        ];
+        if (allNames.length === 0) {
+          console.log(JSON.stringify({ installed: [], updated: [], errors: [], note: "No items in remote registry" }));
+          break;
+        }
+        install(allNames);
+      } else if (!args[0]) {
         console.error(
           JSON.stringify({
-            error: "Usage: node upgrade.js install name1,name2,...",
+            error: "Usage: node upgrade.js install name1,name2,... | --all",
           })
         );
         process.exit(1);
+      } else {
+        install(args[0].split(",").map((s) => s.trim()));
       }
-      install(args[0].split(",").map((s) => s.trim()));
       break;
     case "remove":
       if (!args[0]) {
