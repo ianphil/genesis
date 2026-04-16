@@ -1,13 +1,56 @@
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 
+const IDEA_FOLDERS = ["domains", "initiatives", "expertise", "inbox"];
+
 let qmdModulePromise;
 
-export function getDefaultDbPath() {
+export function getRepoRoot() {
+  // Extension lives at .github/extensions/idea/lib/qmd.mjs — 4 levels up.
+  const thisFile = fileURLToPath(import.meta.url);
+  const root = resolve(dirname(thisFile), "..", "..", "..", "..");
+
+  // Validate: the expected extension path should exist under root.
+  const probe = join(root, ".github", "extensions", "idea");
+  if (!existsSync(probe)) {
+    throw new Error(
+      `IDEA: derived repo root "${root}" looks wrong — expected ${probe} to exist.`,
+    );
+  }
+
+  return root;
+}
+
+export function getAgentDbPath(repoRoot) {
   const home = process.env.USERPROFILE || process.env.HOME || homedir();
-  return join(home, ".cache", "qmd", "index.sqlite");
+  const name = basename(repoRoot);
+  const hash = createHash("sha256").update(resolve(repoRoot)).digest("hex").slice(0, 8);
+  const dir = join(home, ".cache", "qmd", `${name}-${hash}`);
+  mkdirSync(dir, { recursive: true });
+  return join(dir, "index.sqlite");
+}
+
+export function discoverCollections(repoRoot) {
+  const collections = {};
+  for (const folder of IDEA_FOLDERS) {
+    const folderPath = join(repoRoot, folder);
+    if (existsSync(folderPath)) {
+      collections[folder] = { path: folderPath, pattern: "**/*.md" };
+    }
+  }
+
+  if (Object.keys(collections).length === 0) {
+    throw new Error(
+      `IDEA: no collections found under "${repoRoot}". ` +
+      `Expected at least one of: ${IDEA_FOLDERS.join(", ")}`,
+    );
+  }
+
+  return { collections };
 }
 
 export async function loadQmd() {
@@ -50,7 +93,10 @@ export async function loadQmd() {
 
 export async function openStore() {
   const { createStore } = await loadQmd();
-  return createStore({ dbPath: getDefaultDbPath() });
+  const repoRoot = getRepoRoot();
+  const dbPath = getAgentDbPath(repoRoot);
+  const config = discoverCollections(repoRoot);
+  return createStore({ dbPath, config });
 }
 
 export const { extractSnippet, addLineNumbers } = await loadQmd();
