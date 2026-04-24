@@ -1,29 +1,8 @@
 {
-  "version": "0.25.0",
+  "version": "0.26.0",
   "source": "ianphil/genesis",
   "channel": "main",
-  "extensions": {
-    "cron": {
-      "version": "0.4.0",
-      "path": ".github/extensions/cron",
-      "description": "Scheduled job execution — cron, interval, and one-shot with prompt and command payloads"
-    },
-    "canvas": {
-      "version": "0.1.3",
-      "path": ".github/extensions/canvas",
-      "description": "Display rich HTML content in the browser with SSE live reload"
-    },
-    "responses": {
-      "version": "0.9.0",
-      "path": ".github/extensions/responses",
-      "description": "OpenAI Responses API–compatible HTTP server — XML message envelopes with sender identification via X-Agent-Name header"
-    },
-    "idea": {
-      "version": "0.1.0",
-      "path": ".github/extensions/idea",
-      "description": "IDEA mind search — keyword, semantic recall, reindex, and health across Initiatives, Domains, Expertise, and Archive"
-    }
-  },
+  "extensions": {},
   "skills": {
     "commit": {
       "version": "0.1.0",
@@ -34,21 +13,6 @@
       "version": "0.1.0",
       "path": ".github/skills/daily-report",
       "description": "Morning briefing — ADO, Teams, calendar, email, mind next-actions"
-    },
-    "upgrade": {
-      "version": "0.6.0",
-      "path": ".github/skills/upgrade",
-      "description": "Pull new extensions and skills from the genesis template registry; migrate channel-based registries to package-based"
-    },
-    "packages": {
-      "version": "0.2.0",
-      "path": ".github/skills/packages",
-      "description": "Install, remove, and manage extensions and skills from third-party Genesis packages"
-    },
-    "yellow-pages": {
-      "version": "0.1.0",
-      "path": ".github/skills/yellow-pages",
-      "description": "Agent directory and unified comms — send messages to local or remote agents via contacts.json registry"
     }
   },
   "packages": []
