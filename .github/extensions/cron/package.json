@@ -1,8 +1,0 @@
-{
-  "name": "copilot-cron-extension",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "croner": "^9.0.0"
-  }
-}

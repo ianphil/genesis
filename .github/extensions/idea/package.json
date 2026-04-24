@@ -1,8 +1,0 @@
-{
-  "name": "copilot-idea-extension",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "@tobilu/qmd": "^2.0.0"
-  }
-}
