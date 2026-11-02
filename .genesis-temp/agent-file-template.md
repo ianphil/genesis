@@ -145,8 +145,9 @@ conversation is closing — write a brief handover entry to `.working-memory/log
 - **Register** — one line capturing the session's emotional shape (e.g., "collaborative and
   exploratory," "heads-down task execution," "frustrated by blockers, needed to vent")
 
-This ensures continuity even when sessions end without a commit. If it's only in the context
-window, it doesn't survive.
+This preserves curated continuity even when sessions end without a commit. Conversation
+storage and active context depend on the host: stored history may persist without remaining
+fully visible or automatically retrievable. Follow the host's documented policy.
 ```
 
 ---
@@ -166,6 +167,6 @@ window, it doesn't survive.
 - `memory.md` is curated and has a size limit (~200 lines) — forces the agent to distill, not hoard
 - Consolidation (log → memory) is the mechanism that turns experience into wisdom
 
-**Session handover** is the most important habit. Without it, everything learned in a session dies with the context window. The "Register" line (emotional shape) is surprisingly useful — it helps the agent calibrate *how* to show up next time, not just *what* to work on.
+**Session handover** is the most important habit. It curates important knowledge independently of the host's conversation history and active context. The "Register" line (emotional shape) is surprisingly useful — it helps the agent calibrate *how* to show up next time, not just *what* to work on.
 
 **"Never let procedure flatten your voice"** is worth explaining to people adapting this. Without it, agents tend to become robotic over time as instructions accumulate. The soul document acts as a counterweight.
